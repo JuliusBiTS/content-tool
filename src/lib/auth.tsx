@@ -9,7 +9,7 @@ import {
 import type { Session } from '@supabase/supabase-js'
 import { hasSupabaseConfig, supabase } from './supabase'
 import { getMeta, setMeta } from './db'
-import { queueSync } from './sync'
+import { queueSync, resetSyncCache, switchAccount } from './sync'
 
 const LOCAL_USER_KEY = 'auth:localUserId'
 
@@ -39,18 +39,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           id = crypto.randomUUID()
           await setMeta(LOCAL_USER_KEY, id)
         }
+        await switchAccount(`local:${id}`)
         setLocalUserId(id)
         setReady(true)
       })()
       return
     }
 
-    supabase.auth.getSession().then(({ data }) => {
+    supabase.auth.getSession().then(async ({ data }) => {
+      if (data.session) await switchAccount(data.session.user.id)
       setSession(data.session)
       setReady(true)
       if (data.session) queueSync(200)
     })
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
+    const { data: sub } = supabase.auth.onAuthStateChange(async (_e, s) => {
+      if (s) await switchAccount(s.user.id)
       setSession(s)
       if (s) queueSync(200)
     })
@@ -73,6 +76,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       async signOut() {
         await supabase.auth.signOut()
+        await resetSyncCache()
+        await setMeta('account:owner', '')
+        location.reload()
       },
     }),
     [ready, session, localUserId],

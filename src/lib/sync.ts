@@ -134,9 +134,24 @@ async function pullTable<T>(
 
 /** Wipe the local cursors + cache so the next sync does a full pull. */
 export async function resetSyncCache(): Promise<void> {
-  await db.meta.clear()
   await db.items.clear()
   await db.events.clear()
+  await db.outbox.clear()
+  await db.meta.where('key').startsWith('sync:').delete()
+  await refreshPending()
+}
+
+/**
+ * Bind the local cache to an account. If the cache currently belongs to a
+ * different account (or to local-only mode), drop it so we never push another
+ * account's rows or leave orphans that fail RLS forever.
+ */
+export async function switchAccount(ownerId: string): Promise<void> {
+  const key = 'account:owner'
+  const current = await getMeta(key)
+  if (current === ownerId) return
+  await resetSyncCache()
+  await setMeta(key, ownerId)
 }
 
 if (typeof window !== 'undefined') {
