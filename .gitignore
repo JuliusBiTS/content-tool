@@ -20,6 +20,10 @@ supabase/.branches
 supabase/.temp
 .supabase
 
+# Cloudflare / Wrangler
+.wrangler
+.dev.vars
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
