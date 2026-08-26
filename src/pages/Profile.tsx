@@ -10,8 +10,8 @@ export function Profile() {
   useEffect(() => subscribeSync(setS), [])
 
   return (
-    <div className="px-4 pb-28 pt-4">
-      <h1 className="mb-4 text-xl font-bold">Profil</h1>
+    <div className="mx-auto max-w-xl px-4 pb-28 pt-4 lg:px-8 lg:pb-10 lg:pt-8">
+      <h1 className="mb-4 text-xl font-bold lg:text-2xl">Profil</h1>
 
       <div className="rounded-card border border-border bg-surface p-4">
         <div className="text-sm text-muted">Angemeldet als</div>

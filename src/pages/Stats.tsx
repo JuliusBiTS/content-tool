@@ -48,36 +48,38 @@ export function Stats() {
   }, [events, items])
 
   return (
-    <div className="px-4 pb-28 pt-4">
-      <h1 className="mb-4 text-xl font-bold">Statistik</h1>
+    <div className="px-4 pb-28 pt-4 lg:px-8 lg:pb-10 lg:pt-8">
+      <h1 className="mb-4 text-xl font-bold lg:text-2xl">Statistik</h1>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="Diese Woche" value={stats.week} unit="Einheiten" />
         <Stat label="Letzte 30 Tage" value={stats.month} unit="Einheiten" />
         <Stat label="Streak" value={stats.streak} unit="Tage" />
         <Stat label="Aktiv" value={stats.active} unit="Titel" />
       </div>
 
-      <section className="mt-6 rounded-card border border-border bg-surface p-4">
-        <h2 className="mb-3 text-sm font-semibold text-muted">Aktivität</h2>
-        <Heatmap counts={stats.counts} />
-      </section>
+      <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_18rem]">
+        <section className="rounded-card border border-border bg-surface p-4">
+          <h2 className="mb-3 text-sm font-semibold text-muted">Aktivität</h2>
+          <Heatmap counts={stats.counts} />
+        </section>
 
-      <section className="mt-6 rounded-card border border-border bg-surface p-4">
-        <h2 className="mb-3 text-sm font-semibold text-muted">Sammlung</h2>
-        <div className="space-y-2">
-          {stats.byKind.map(({ k, n }) => (
-            <div key={k} className="flex items-center justify-between text-sm">
-              <span>{KIND_LABEL[k]}</span>
-              <span className="tabular-nums text-muted">{n}</span>
+        <section className="rounded-card border border-border bg-surface p-4">
+          <h2 className="mb-3 text-sm font-semibold text-muted">Sammlung</h2>
+          <div className="space-y-2">
+            {stats.byKind.map(({ k, n }) => (
+              <div key={k} className="flex items-center justify-between text-sm">
+                <span>{KIND_LABEL[k]}</span>
+                <span className="tabular-nums text-muted">{n}</span>
+              </div>
+            ))}
+            <div className="flex items-center justify-between border-t border-border pt-2 text-sm font-medium">
+              <span>Abgeschlossen</span>
+              <span className="tabular-nums">{stats.done}</span>
             </div>
-          ))}
-          <div className="flex items-center justify-between border-t border-border pt-2 text-sm font-medium">
-            <span>Abgeschlossen</span>
-            <span className="tabular-nums">{stats.done}</span>
           </div>
-        </div>
-      </section>
+        </section>
+      </div>
     </div>
   )
 }

@@ -12,6 +12,7 @@ export interface SyncState {
   syncing: boolean
   pending: number
   lastSyncedAt: string | null
+  error: string | null
 }
 
 const listeners = new Set<Listener>()
@@ -20,6 +21,7 @@ let state: SyncState = {
   syncing: false,
   pending: 0,
   lastSyncedAt: null,
+  error: null,
 }
 
 function emit() {
@@ -64,10 +66,12 @@ export async function runSync(): Promise<void> {
     await pushOutbox()
     await pullDeltas()
     const at = new Date().toISOString()
-    state = { ...state, lastSyncedAt: at }
+    state = { ...state, lastSyncedAt: at, error: null }
     await setMeta('sync:lastAt', at)
   } catch (e) {
     console.warn('[sync] failed', e)
+    const msg = e instanceof Error ? e.message : 'Sync fehlgeschlagen'
+    state = { ...state, error: msg }
   } finally {
     running = false
     state = { ...state, syncing: false }
@@ -139,6 +143,26 @@ export async function resetSyncCache(): Promise<void> {
   await db.outbox.clear()
   await db.meta.where('key').startsWith('sync:').delete()
   await refreshPending()
+}
+
+/**
+ * Subscribe to Postgres changes for this user so edits from another device
+ * trigger a delta pull. Returns an unsubscribe function.
+ */
+export function startRealtime(): () => void {
+  if (!hasSupabaseConfig) return () => {}
+  const channel = supabase
+    .channel('medialog-sync')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'items' }, () =>
+      queueSync(400),
+    )
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, () =>
+      queueSync(400),
+    )
+    .subscribe()
+  return () => {
+    void supabase.removeChannel(channel)
+  }
 }
 
 /**

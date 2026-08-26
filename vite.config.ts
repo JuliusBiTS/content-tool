@@ -19,9 +19,13 @@ export default defineConfig({
         theme_color: '#0b0b0f',
         background_color: '#0b0b0f',
         display: 'standalone',
-        orientation: 'portrait',
         start_url: '/',
         scope: '/',
+        share_target: {
+          action: '/add',
+          method: 'GET',
+          params: { title: 'title', text: 'text', url: 'url' },
+        },
         icons: [
           { src: 'pwa-192.png', sizes: '192x192', type: 'image/png' },
           { src: 'pwa-512.png', sizes: '512x512', type: 'image/png' },

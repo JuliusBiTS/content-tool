@@ -31,8 +31,8 @@ export function Library() {
   const items = useLibrary(filter)
 
   return (
-    <div className="px-4 pb-28 pt-4">
-      <h1 className="mb-4 text-xl font-bold">Bibliothek</h1>
+    <div className="px-4 pb-28 pt-4 lg:px-8 lg:pb-10 lg:pt-8">
+      <h1 className="mb-4 text-xl font-bold lg:text-2xl">Bibliothek</h1>
 
       <input
         value={filter.query}
@@ -41,7 +41,7 @@ export function Library() {
         className="mb-3 w-full rounded-lg border border-border bg-surface-2 px-4 py-2.5 outline-none focus:border-accent"
       />
 
-      <div className="no-scrollbar -mx-4 mb-2 flex gap-2 overflow-x-auto px-4">
+      <div className="no-scrollbar -mx-4 mb-2 flex gap-2 overflow-x-auto px-4 lg:mx-0 lg:flex-wrap lg:px-0">
         {KINDS.map((k) => (
           <Chip
             key={k.key}
@@ -52,7 +52,7 @@ export function Library() {
           </Chip>
         ))}
       </div>
-      <div className="no-scrollbar -mx-4 mb-4 flex gap-2 overflow-x-auto px-4">
+      <div className="no-scrollbar -mx-4 mb-4 flex gap-2 overflow-x-auto px-4 lg:mx-0 lg:flex-wrap lg:px-0">
         {STATUSES.map((s) => (
           <Chip
             key={s.key}
@@ -65,7 +65,7 @@ export function Library() {
       </div>
 
       {items === undefined ? (
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8">
           {Array.from({ length: 9 }).map((_, i) => (
             <div key={i} className="aspect-[2/3] animate-pulse rounded-lg bg-surface" />
           ))}
@@ -73,7 +73,7 @@ export function Library() {
       ) : items.length === 0 ? (
         <p className="mt-10 text-center text-sm text-muted">Keine Einträge.</p>
       ) : (
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8">
           {items.map((item) => {
             const frac = progressFraction(item)
             return (

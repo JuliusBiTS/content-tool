@@ -24,10 +24,19 @@ const SOURCE_BADGE: Record<string, string> = {
   tmdb: 'TMDB',
   anilist: 'AniList',
   openlibrary: 'Books',
+  googlebooks: 'Books',
   manual: 'Manuell',
 }
 
-export function AddSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function AddSheet({
+  open,
+  onClose,
+  prefill = '',
+}: {
+  open: boolean
+  onClose: () => void
+  prefill?: string
+}) {
   const { userId } = useAuth()
   const navigate = useNavigate()
   const [scope, setScope] = useState<SearchScope>('all')
@@ -41,6 +50,7 @@ export function AddSheet({ open, onClose }: { open: boolean; onClose: () => void
 
   useEffect(() => {
     if (open) {
+      setQ(prefill)
       setTimeout(() => inputRef.current?.focus(), 150)
     } else {
       setQ('')
@@ -48,7 +58,7 @@ export function AddSheet({ open, onClose }: { open: boolean; onClose: () => void
       setExpanded(null)
       setScope('all')
     }
-  }, [open])
+  }, [open, prefill])
 
   useEffect(() => {
     if (!open) return

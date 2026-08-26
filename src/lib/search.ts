@@ -1,5 +1,5 @@
 import { getAnimeDetail, searchAnime } from './anilist'
-import { getBookPages, searchBooks } from './openlibrary'
+import { getBookPages, searchBooks } from './googlebooks'
 import { getTmdbDetail, searchTmdb } from './tmdb'
 import type { ItemMetadata, MediaKind, SearchResult } from './types'
 
@@ -62,7 +62,7 @@ export async function resolveMeta(result: SearchResult): Promise<ResolvedMeta> {
         },
       }
     }
-    if (result.source === 'openlibrary') {
+    if (result.source === 'googlebooks' || result.source === 'openlibrary') {
       const pages = await getBookPages(result.source_id)
       return { total_units: pages, metadata: { year: result.year ?? undefined } }
     }

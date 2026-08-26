@@ -2,8 +2,9 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Poster } from './Poster'
 import { QuickPositionSheet } from './QuickPositionSheet'
-import { bumpProgress } from '../lib/repo'
+import { bumpProgress, setPosition } from '../lib/repo'
 import { nextActionLabel, positionLabel, progressFraction } from '../lib/progress'
+import { useToast } from './Toast'
 import type { Item } from '../lib/types'
 
 function haptic() {
@@ -16,6 +17,7 @@ function haptic() {
 
 export function ContinueCard({ item }: { item: Item }) {
   const navigate = useNavigate()
+  const toast = useToast()
   const [busy, setBusy] = useState(false)
   const [popKey, setPopKey] = useState(0)
   const [quickOpen, setQuickOpen] = useState(false)
@@ -26,9 +28,14 @@ export function ContinueCard({ item }: { item: Item }) {
     if (busy) return
     setBusy(true)
     haptic()
+    const prev = item.current_position
     try {
-      await bumpProgress(item)
+      const updated = await bumpProgress(item)
       setPopKey((k) => k + 1)
+      toast.show(`${item.title}: ${positionLabel(updated)}`, {
+        label: 'Rückgängig',
+        run: () => void setPosition(updated, prev),
+      })
     } finally {
       setBusy(false)
     }

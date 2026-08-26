@@ -2,7 +2,12 @@ export type MediaKind = 'series' | 'movie' | 'anime' | 'book'
 
 export type ItemStatus = 'watching' | 'done' | 'planned' | 'paused' | 'dropped'
 
-export type MetaSource = 'tmdb' | 'anilist' | 'openlibrary' | 'manual'
+export type MetaSource =
+  | 'tmdb'
+  | 'anilist'
+  | 'openlibrary'
+  | 'googlebooks'
+  | 'manual'
 
 /** A season/volume entry stored in item.metadata.seasons */
 export interface SeasonMeta {

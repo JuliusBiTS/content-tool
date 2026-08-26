@@ -11,7 +11,7 @@ const items = [
 export function BottomNav({ onAdd }: { onAdd: () => void }) {
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-30 mx-auto max-w-lg border-t border-border bg-surface/95 backdrop-blur"
+      className="fixed inset-x-0 bottom-0 z-30 mx-auto max-w-lg border-t border-border bg-surface/95 backdrop-blur lg:hidden"
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
       <div className="grid grid-cols-5 items-center px-2">

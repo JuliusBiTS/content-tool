@@ -2,6 +2,7 @@ import { db } from './db'
 import { isComplete, stepSize } from './progress'
 import type {
   Item,
+  ItemMetadata,
   ItemStatus,
   MediaKind,
   ProgressEvent,
@@ -170,6 +171,13 @@ export async function setRating(item: Item, rating: number | null): Promise<Item
   const updated = await patchItem(item, { rating })
   await logEvent(updated, 'rating', null, rating, null)
   return updated
+}
+
+export async function setMetadata(
+  item: Item,
+  patch: Partial<ItemMetadata>,
+): Promise<Item> {
+  return patchItem(item, { metadata: { ...item.metadata, ...patch } })
 }
 
 export async function softDelete(item: Item): Promise<void> {
