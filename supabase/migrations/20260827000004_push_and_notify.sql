@@ -20,14 +20,16 @@ grant select, insert, update, delete on public.push_subscriptions to authenticat
 -- ---------- Daily "new episode" check ----------
 -- Requires the pg_cron and pg_net extensions (enable once in the dashboard:
 --   Database → Extensions → pg_cron, pg_net).
--- Also set the project ref + a shared secret below, then the edge function
--- `notify-airing` verifies the secret header.
+--
+-- The Authorization header (anon key) satisfies the function's JWT check, so
+-- you do NOT need to disable "Verify JWT" on the function. The real gate is the
+-- x-cron-secret header, which the function compares against its CRON_SECRET.
+--
+-- Replace all three placeholders below, then run this block.
 
 create extension if not exists pg_cron;
 create extension if not exists pg_net;
 
--- Replace <PROJECT_REF> and <CRON_SECRET> before running, or run the
--- cron.schedule call manually from the SQL editor.
 do $$
 begin
   perform cron.unschedule('medialog-notify-airing');
@@ -42,6 +44,7 @@ select cron.schedule(
     url := 'https://<PROJECT_REF>.supabase.co/functions/v1/notify-airing',
     headers := jsonb_build_object(
       'Content-Type', 'application/json',
+      'Authorization', 'Bearer <ANON_KEY>',
       'x-cron-secret', '<CRON_SECRET>'
     ),
     body := '{}'::jsonb
