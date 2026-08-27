@@ -155,7 +155,7 @@ export async function retryFailedSync(): Promise<void> {
   queueSync(100)
 }
 
-function isTransportError(e: { message?: string; code?: string }): boolean {
+export function isTransportError(e: { message?: string; code?: string }): boolean {
   if (e.code) return false // has a Postgres/PostgREST code → data-level rejection
   const m = (e.message ?? '').toLowerCase()
   return (
