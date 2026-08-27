@@ -289,7 +289,7 @@ function describeEvent(kind: string, from: number | null, to: number | null): st
     case 'status':
       return 'Status geändert'
     case 'rating':
-      return to ? `Bewertet: ${to}★` : 'Bewertung entfernt'
+      return to ? `Bewertet: ${(to / 2).toFixed(1)}★` : 'Bewertung entfernt'
     case 'progress':
       return `Fortschritt ${from ?? 0} → ${to ?? 0}`
     default:

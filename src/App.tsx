@@ -21,9 +21,10 @@ import { Stats } from './pages/Stats'
 import { Profile } from './pages/Profile'
 import { ItemDetail } from './pages/ItemDetail'
 import { Login } from './pages/Login'
+import { ResetPassword } from './pages/ResetPassword'
 
 function Shell() {
-  const { ready, userId, localOnly } = useAuth()
+  const { ready, userId, localOnly, passwordRecovery } = useAuth()
   const [addOpen, setAddOpen] = useState(false)
   const [addPrefill, setAddPrefill] = useState('')
   const location = useLocation()
@@ -58,6 +59,12 @@ function Shell() {
 
   if (!ready) {
     return <div className="grid min-h-dvh place-items-center text-muted">…</div>
+  }
+
+  // A recovery link creates a session, so this must be checked before the
+  // normal authed routing takes over.
+  if (passwordRecovery || location.pathname === '/reset') {
+    return <ResetPassword />
   }
 
   if (hasSupabaseConfig && !userId) {

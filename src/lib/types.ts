@@ -38,6 +38,7 @@ export interface Item {
   source: MetaSource
   source_id: string | null
   status: ItemStatus
+  /** half-star units, 1..10 (→ 0.5..5.0 stars); null = unrated */
   rating: number | null
   /** episodes watched (series/anime), minutes (movie), pages (book) */
   current_position: number

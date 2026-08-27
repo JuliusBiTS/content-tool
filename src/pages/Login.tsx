@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { useAuth } from '../lib/auth'
 
+type Mode = 'in' | 'up' | 'forgot'
+
 export function Login() {
-  const { signIn, signUp } = useAuth()
-  const [mode, setMode] = useState<'in' | 'up'>('in')
+  const { signIn, signUp, sendPasswordReset } = useAuth()
+  const [mode, setMode] = useState<Mode>('in')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
@@ -18,10 +20,13 @@ export function Login() {
     try {
       if (mode === 'in') {
         await signIn(email, password)
-      } else {
+      } else if (mode === 'up') {
         await signUp(email, password)
         setMsg('Konto erstellt. Du kannst dich jetzt anmelden.')
         setMode('in')
+      } else {
+        await sendPasswordReset(email)
+        setMsg('Falls es ein Konto gibt, ist eine E-Mail mit Link unterwegs.')
       }
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Fehler')
@@ -30,8 +35,11 @@ export function Login() {
     }
   }
 
+  const title =
+    mode === 'in' ? 'Anmelden' : mode === 'up' ? 'Konto erstellen' : 'Link senden'
+
   return (
-    <div className="mx-auto flex min-h-full max-w-sm flex-col justify-center px-6 py-12">
+    <div className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center px-6 py-12">
       <div className="mb-8 text-center">
         <div className="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-2xl bg-accent text-2xl">
           ▶
@@ -52,16 +60,18 @@ export function Login() {
           autoComplete="email"
           className="w-full rounded-lg border border-border bg-surface-2 px-4 py-3 outline-none focus:border-accent"
         />
-        <input
-          type="password"
-          required
-          minLength={6}
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="Passwort"
-          autoComplete={mode === 'in' ? 'current-password' : 'new-password'}
-          className="w-full rounded-lg border border-border bg-surface-2 px-4 py-3 outline-none focus:border-accent"
-        />
+        {mode !== 'forgot' && (
+          <input
+            type="password"
+            required
+            minLength={6}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Passwort"
+            autoComplete={mode === 'in' ? 'current-password' : 'new-password'}
+            className="w-full rounded-lg border border-border bg-surface-2 px-4 py-3 outline-none focus:border-accent"
+          />
+        )}
 
         {err && <p className="text-sm text-danger">{err}</p>}
         {msg && <p className="text-sm text-success">{msg}</p>}
@@ -71,19 +81,32 @@ export function Login() {
           disabled={busy}
           className="w-full rounded-lg bg-accent py-3 font-semibold text-white disabled:opacity-50"
         >
-          {busy ? '…' : mode === 'in' ? 'Anmelden' : 'Konto erstellen'}
+          {busy ? '…' : title}
         </button>
       </form>
 
-      <button
-        onClick={() => {
-          setMode(mode === 'in' ? 'up' : 'in')
-          setErr(null)
-        }}
-        className="mt-4 text-center text-sm text-muted"
-      >
-        {mode === 'in' ? 'Noch kein Konto? Registrieren' : 'Schon ein Konto? Anmelden'}
-      </button>
+      <div className="mt-4 flex flex-col items-center gap-2 text-sm text-muted">
+        {mode === 'in' && (
+          <>
+            <button onClick={() => switchMode('forgot')}>Passwort vergessen?</button>
+            <button onClick={() => switchMode('up')}>
+              Noch kein Konto? Registrieren
+            </button>
+          </>
+        )}
+        {mode === 'up' && (
+          <button onClick={() => switchMode('in')}>Schon ein Konto? Anmelden</button>
+        )}
+        {mode === 'forgot' && (
+          <button onClick={() => switchMode('in')}>Zurück zur Anmeldung</button>
+        )}
+      </div>
     </div>
   )
+
+  function switchMode(m: Mode) {
+    setMode(m)
+    setErr(null)
+    setMsg(null)
+  }
 }

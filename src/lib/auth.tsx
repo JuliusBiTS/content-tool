@@ -19,9 +19,13 @@ interface AuthValue {
   userId: string | null
   /** true when running without a Supabase backend (local-only mode) */
   localOnly: boolean
+  /** true after arriving via a password-recovery email link */
+  passwordRecovery: boolean
   signIn: (email: string, password: string) => Promise<void>
   signUp: (email: string, password: string) => Promise<void>
   signOut: () => Promise<void>
+  sendPasswordReset: (email: string) => Promise<void>
+  updatePassword: (newPassword: string) => Promise<void>
 }
 
 const Ctx = createContext<AuthValue | null>(null)
@@ -30,6 +34,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false)
   const [session, setSession] = useState<Session | null>(null)
   const [localUserId, setLocalUserId] = useState<string | null>(null)
+  const [passwordRecovery, setPasswordRecovery] = useState(
+    () => typeof window !== 'undefined' && window.location.hash.includes('type=recovery'),
+  )
 
   useEffect(() => {
     if (!hasSupabaseConfig) {
@@ -52,7 +59,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setReady(true)
       if (data.session) queueSync(200)
     })
-    const { data: sub } = supabase.auth.onAuthStateChange(async (_e, s) => {
+    const { data: sub } = supabase.auth.onAuthStateChange(async (event, s) => {
+      if (event === 'PASSWORD_RECOVERY') setPasswordRecovery(true)
       if (s) await switchAccount(s.user.id)
       setSession(s)
       if (s) queueSync(200)
@@ -65,6 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ready,
       session,
       localOnly: !hasSupabaseConfig,
+      passwordRecovery,
       userId: hasSupabaseConfig ? (session?.user.id ?? null) : localUserId,
       async signIn(email, password) {
         const { error } = await supabase.auth.signInWithPassword({ email, password })
@@ -80,8 +89,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await setMeta('account:owner', '')
         location.reload()
       },
+      async sendPasswordReset(email) {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/reset`,
+        })
+        if (error) throw error
+      },
+      async updatePassword(newPassword) {
+        const { error } = await supabase.auth.updateUser({ password: newPassword })
+        if (error) throw error
+        setPasswordRecovery(false)
+      },
     }),
-    [ready, session, localUserId],
+    [ready, session, localUserId, passwordRecovery],
   )
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
