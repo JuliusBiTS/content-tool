@@ -58,13 +58,13 @@ export function Stats() {
         <Stat label="Aktiv" value={stats.active} unit="Titel" />
       </div>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_18rem]">
-        <section className="rounded-card border border-border bg-surface p-4">
+      <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
+        <section className="min-w-0 rounded-card border border-border bg-surface p-4">
           <h2 className="mb-3 text-sm font-semibold text-muted">Aktivität</h2>
           <Heatmap counts={stats.counts} />
         </section>
 
-        <section className="rounded-card border border-border bg-surface p-4">
+        <section className="min-w-0 rounded-card border border-border bg-surface p-4">
           <h2 className="mb-3 text-sm font-semibold text-muted">Sammlung</h2>
           <div className="space-y-2">
             {stats.byKind.map(({ k, n }) => (

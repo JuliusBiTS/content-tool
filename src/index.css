@@ -38,6 +38,8 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   overscroll-behavior-y: none;
+  /* cinematic glows / grain must never widen the page on mobile */
+  overflow-x: clip;
 }
 
 /* Respect iOS safe areas + PWA standalone */
@@ -83,22 +85,24 @@ h2,
 .grain::after {
   content: '';
   position: fixed;
-  inset: -50%;
+  inset: 0;
   z-index: 9998;
   pointer-events: none;
   opacity: 0.035;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 120px 120px;
   animation: grain 0.7s steps(2) infinite;
 }
 @keyframes grain {
   0%,
-  100% { transform: translate(0, 0); }
-  50% { transform: translate(-1.5%, 1%); }
+  100% { background-position: 0 0; }
+  50% { background-position: -24px 12px; }
 }
 
 /* Backdrop stage: image bleeds behind content, fades into the page */
 .stage {
   position: relative;
+  overflow: hidden;
 }
 .stage-bg {
   position: absolute;
