@@ -82,6 +82,8 @@ export interface SearchResult {
   source_id: string
   kind: MediaKind
   title: string
+  /** untranslated title, when the provider returns a localized one */
+  original_title?: string
   year: number | null
   poster_url: string | null
   overview: string | null

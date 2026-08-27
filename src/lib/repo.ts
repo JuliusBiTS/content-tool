@@ -65,6 +65,51 @@ export async function addFromSearch(
   return item
 }
 
+/**
+ * Bulk-import a film without a metadata detail round-trip (used by the
+ * Letterboxd importer). `result` may be a TMDB search hit or a manual stub.
+ */
+export async function importFilm(opts: {
+  userId: string
+  title: string
+  year: number | null
+  posterUrl: string | null
+  source: Item['source']
+  sourceId: string | null
+  status: ItemStatus
+  rating: number | null
+  watchedAt: string | null
+}): Promise<Item> {
+  const ts = now()
+  const done = opts.status === 'done'
+  const item: Item = {
+    id: uuid(),
+    user_id: opts.userId,
+    kind: 'movie',
+    title: opts.title,
+    sort_title: opts.title.toLowerCase().replace(/^(the|a|an|der|die|das) /i, ''),
+    poster_url: opts.posterUrl,
+    backdrop_url: null,
+    source: opts.source,
+    source_id: opts.sourceId,
+    status: opts.status,
+    rating: opts.rating,
+    current_position: done ? 1 : 0,
+    total_units: null,
+    metadata: opts.year ? { year: opts.year } : {},
+    started_at: done ? (opts.watchedAt ?? ts) : null,
+    finished_at: done ? (opts.watchedAt ?? ts) : null,
+    created_at: ts,
+    updated_at: ts,
+    deleted_at: null,
+  }
+  await db.items.add(item)
+  await enqueue('items', 'insert', item.id, item as unknown as Record<string, unknown>)
+  await logEvent(item, 'add', null, null, null)
+  if (opts.rating != null) await logEvent(item, 'rating', null, opts.rating, null)
+  return item
+}
+
 export async function addManual(opts: {
   userId: string
   kind: MediaKind

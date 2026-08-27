@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '../lib/auth'
 import { runSync, subscribeSync, resetSyncCache, type SyncState } from '../lib/sync'
 import { useAllItems } from '../hooks/useData'
+import { ImportSheet } from '../components/ImportSheet'
 
 export function Profile() {
   const { session, localOnly, signOut } = useAuth()
   const items = useAllItems()
   const [s, setS] = useState<SyncState | null>(null)
+  const [importOpen, setImportOpen] = useState(false)
   useEffect(() => subscribeSync(setS), [])
 
   return (
@@ -34,6 +36,12 @@ export function Profile() {
       </div>
 
       <div className="mt-4 space-y-2">
+        <button
+          onClick={() => setImportOpen(true)}
+          className="w-full rounded-lg border border-border py-2.5 text-sm"
+        >
+          Aus Letterboxd importieren
+        </button>
         {!localOnly && (
           <button
             onClick={() => void runSync()}
@@ -64,6 +72,8 @@ export function Profile() {
       </div>
 
       <p className="mt-8 text-center text-xs text-muted">MediaLog · v0.1</p>
+
+      <ImportSheet open={importOpen} onClose={() => setImportOpen(false)} />
     </div>
   )
 }

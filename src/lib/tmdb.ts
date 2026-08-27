@@ -10,6 +10,8 @@ interface TmdbSearchItem {
   media_type: 'tv' | 'movie' | 'person'
   name?: string
   title?: string
+  original_name?: string
+  original_title?: string
   first_air_date?: string
   release_date?: string
   poster_path: string | null
@@ -36,6 +38,7 @@ export async function searchTmdb(query: string): Promise<SearchResult[]> {
         source_id: `${r.media_type}:${r.id}`,
         kind: (isTv ? 'series' : 'movie') as SearchResult['kind'],
         title: (isTv ? r.name : r.title) ?? 'Unbenannt',
+        original_title: (isTv ? r.original_name : r.original_title) || undefined,
         year: date ? Number(date.slice(0, 4)) : null,
         poster_url: tmdbPoster(r.poster_path),
         overview: r.overview || null,
