@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../lib/auth'
-import { runSync, subscribeSync, resetSyncCache, type SyncState } from '../lib/sync'
+import {
+  runSync,
+  subscribeSync,
+  resetSyncCache,
+  retryFailedSync,
+  type SyncState,
+} from '../lib/sync'
 import { useAllItems } from '../hooks/useData'
 import { ImportSheet } from '../components/ImportSheet'
 
@@ -25,6 +31,7 @@ export function Profile() {
       <div className="mt-4 rounded-card border border-border bg-surface p-4 text-sm">
         <Row label="Titel gesamt" value={items?.length ?? '…'} />
         <Row label="Offene Syncs" value={s?.pending ?? 0} />
+        {!!s?.quarantined && <Row label="Vom Server abgelehnt" value={s.quarantined} />}
         <Row
           label="Letzter Sync"
           value={
@@ -34,6 +41,12 @@ export function Profile() {
           }
         />
       </div>
+
+      {s?.error && (
+        <p className="mt-3 rounded-lg border border-danger/40 bg-danger/10 p-3 text-xs text-danger">
+          {s.error}
+        </p>
+      )}
 
       <div className="mt-4 space-y-2">
         <button
@@ -48,6 +61,14 @@ export function Profile() {
             className="w-full rounded-lg border border-border py-2.5 text-sm"
           >
             Jetzt synchronisieren
+          </button>
+        )}
+        {!localOnly && (!!s?.quarantined || !!s?.error) && (
+          <button
+            onClick={() => void retryFailedSync()}
+            className="w-full rounded-lg border border-accent bg-accent-soft py-2.5 text-sm"
+          >
+            Abgelehnte erneut senden
           </button>
         )}
         <button

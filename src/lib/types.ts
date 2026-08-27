@@ -74,6 +74,11 @@ export interface OutboxOp {
   row_id: string
   payload: Record<string, unknown>
   created_at: string
+  /** failed push attempts; quarantined after a few */
+  attempts?: number
+  last_error?: string
+  /** server kept rejecting this row — skipped until the user retries */
+  quarantined?: boolean
 }
 
 /** A normalized search result from any metadata provider */

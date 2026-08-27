@@ -11,6 +11,8 @@ export interface SyncState {
   online: boolean
   syncing: boolean
   pending: number
+  /** rows the server rejected repeatedly and gave up on */
+  quarantined: number
   lastSyncedAt: string | null
   error: string | null
 }
@@ -20,6 +22,7 @@ let state: SyncState = {
   online: typeof navigator === 'undefined' ? true : navigator.onLine,
   syncing: false,
   pending: 0,
+  quarantined: 0,
   lastSyncedAt: null,
   error: null,
 }
@@ -35,7 +38,13 @@ export function subscribeSync(l: Listener): () => void {
 }
 
 async function refreshPending() {
-  state = { ...state, pending: await db.outbox.count() }
+  const all = await db.outbox.toArray()
+  const quarantined = all.filter((o) => o.quarantined).length
+  state = {
+    ...state,
+    pending: all.length - quarantined,
+    quarantined,
+  }
   emit()
 }
 
@@ -63,10 +72,10 @@ export async function runSync(): Promise<void> {
   state = { ...state, syncing: true }
   emit()
   try {
-    await pushOutbox()
+    const rowError = await pushOutbox()
     await pullDeltas()
     const at = new Date().toISOString()
-    state = { ...state, lastSyncedAt: at, error: null }
+    state = { ...state, lastSyncedAt: at, error: rowError }
     await setMeta('sync:lastAt', at)
   } catch (e) {
     console.warn('[sync] failed', e)
@@ -83,21 +92,79 @@ export async function runSync(): Promise<void> {
   }
 }
 
-async function pushOutbox(): Promise<void> {
+const MAX_ATTEMPTS = 6
+
+/** Returns a human message if some rows were rejected, else null. */
+async function pushOutbox(): Promise<string | null> {
   const ops = await db.outbox.orderBy('created_at').toArray()
+  const failedRows = new Set<string>()
+  let lastRowError: string | null = null
+
   for (const op of ops) {
-    let error
-    if (op.op === 'insert') {
-      ;({ error } = await supabase.from(op.table).upsert(op.payload, { onConflict: 'id' }))
-    } else {
-      ;({ error } = await supabase.from(op.table).update(op.payload).eq('id', op.row_id))
+    if (op.quarantined) {
+      failedRows.add(op.row_id)
+      continue
     }
-    if (error) {
-      // Stop on first error; retry next cycle. Keeps ordering intact.
-      throw error
+    // A row whose parent insert failed this pass can't be pushed either.
+    const dependsOnFailed =
+      failedRows.has(op.row_id) ||
+      (op.table === 'events' && failedRows.has(String(op.payload.item_id)))
+    if (dependsOnFailed) {
+      failedRows.add(op.row_id)
+      continue
     }
-    await db.outbox.delete(op.id)
+
+    const { error } =
+      op.op === 'insert'
+        ? await supabase.from(op.table).upsert(op.payload, { onConflict: 'id' })
+        : await supabase.from(op.table).update(op.payload).eq('id', op.row_id)
+
+    if (!error) {
+      await db.outbox.delete(op.id)
+      continue
+    }
+
+    // A network/transport failure means "try the whole batch again later".
+    if (isTransportError(error)) throw error
+
+    // A data-level rejection (constraint, RLS, …) is specific to this row.
+    // Retry a few times, then quarantine so it can't stall everything —
+    // the user can fix the cause and hit "retry" to flush it.
+    failedRows.add(op.row_id)
+    lastRowError = error.message
+    const attempts = (op.attempts ?? 0) + 1
+    await db.outbox.update(op.id, {
+      attempts,
+      last_error: error.message,
+      quarantined: attempts >= MAX_ATTEMPTS,
+    })
   }
+
+  return lastRowError
+}
+
+/** Clear quarantine + attempt counters so the next sync re-tries every row. */
+export async function retryFailedSync(): Promise<void> {
+  const ops = await db.outbox.toArray()
+  await Promise.all(
+    ops.map((o) =>
+      db.outbox.update(o.id, { quarantined: false, attempts: 0, last_error: undefined }),
+    ),
+  )
+  await refreshPending()
+  queueSync(100)
+}
+
+function isTransportError(e: { message?: string; code?: string }): boolean {
+  if (e.code) return false // has a Postgres/PostgREST code → data-level rejection
+  const m = (e.message ?? '').toLowerCase()
+  return (
+    m.includes('fetch') ||
+    m.includes('network') ||
+    m.includes('load failed') ||
+    m.includes('timeout') ||
+    m.includes('connection')
+  )
 }
 
 async function pullDeltas(): Promise<void> {
