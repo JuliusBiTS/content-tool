@@ -43,7 +43,13 @@ if (envKey && !isSupabaseAnonKey(envKey)) {
   )
 }
 
-export const hasSupabaseConfig = Boolean(url && anonKey)
+// Dev escape hatch: `localStorage.setItem('dev:localOnly','1')` to work offline.
+const devLocalOnly =
+  import.meta.env.DEV &&
+  typeof localStorage !== 'undefined' &&
+  localStorage.getItem('dev:localOnly') === '1'
+
+export const hasSupabaseConfig = Boolean(url && anonKey) && !devLocalOnly
 
 export const supabase = createClient(url, anonKey, {
   auth: {

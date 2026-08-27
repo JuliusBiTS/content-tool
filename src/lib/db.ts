@@ -1,15 +1,20 @@
 import Dexie, { type EntityTable } from 'dexie'
-import type { Item, OutboxOp, ProgressEvent } from './types'
+import type { Item, OutboxOp, ProgressEvent, ShowCache } from './types'
 
 /**
  * Local-first cache. The app reads/writes here first; the sync engine
  * (see sync.ts) drains the outbox to Supabase and pulls deltas back.
+ *
+ * `shows` and `palettes` are derived-from-TMDB caches — never synced, each
+ * device refills them on demand.
  */
 class MediaLogDB extends Dexie {
   items!: EntityTable<Item, 'id'>
   events!: EntityTable<ProgressEvent, 'id'>
   outbox!: EntityTable<OutboxOp, 'id'>
   meta!: EntityTable<{ key: string; value: string }, 'key'>
+  shows!: EntityTable<ShowCache, 'tmdbId'>
+  palettes!: EntityTable<{ url: string; hex: string }, 'url'>
 
   constructor() {
     super('medialog')
@@ -18,6 +23,14 @@ class MediaLogDB extends Dexie {
       events: 'id, item_id, occurred_at',
       outbox: 'id, created_at',
       meta: 'key',
+    })
+    this.version(2).stores({
+      items: 'id, status, kind, updated_at, sort_title',
+      events: 'id, item_id, occurred_at',
+      outbox: 'id, created_at',
+      meta: 'key',
+      shows: 'tmdbId, fetchedAt',
+      palettes: 'url',
     })
   }
 }

@@ -176,6 +176,11 @@ async function patchItem(item: Item, patch: Partial<Item>): Promise<Item> {
   return updated
 }
 
+/** Public escape hatch for enrichment code (backdrop/logo backfill). */
+export async function patchItemFields(item: Item, patch: Partial<Item>): Promise<Item> {
+  return patchItem(item, patch)
+}
+
 /** The core "+1" action. Returns the updated item. */
 export async function bumpProgress(item: Item, deltaOverride?: number): Promise<Item> {
   const from = item.current_position

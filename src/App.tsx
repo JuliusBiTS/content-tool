@@ -20,8 +20,10 @@ import { Library } from './pages/Library'
 import { Stats } from './pages/Stats'
 import { Profile } from './pages/Profile'
 import { ItemDetail } from './pages/ItemDetail'
+import { Upcoming } from './pages/Upcoming'
 import { Login } from './pages/Login'
 import { ResetPassword } from './pages/ResetPassword'
+import { refreshAiringCache } from './lib/airing'
 
 function Shell() {
   const { ready, userId, localOnly, passwordRecovery } = useAuth()
@@ -47,6 +49,14 @@ function Shell() {
       document.removeEventListener('visibilitychange', onVis)
     }
   }, [userId, localOnly])
+
+  // Keep the airing cache warm + surface new episodes
+  useEffect(() => {
+    if (!userId) return
+    void refreshAiringCache()
+    const t = setInterval(() => void refreshAiringCache(), 6 * 60 * 60 * 1000)
+    return () => clearInterval(t)
+  }, [userId])
 
   // Web Share Target: /add?title=…&text=…  → open the add sheet prefilled
   useEffect(() => {
@@ -78,7 +88,7 @@ function Shell() {
   }
 
   return (
-    <div className="min-h-dvh lg:flex">
+    <div className="grain min-h-dvh lg:flex">
       <SideNav onAdd={openAdd} />
 
       <main className="min-w-0 flex-1">
@@ -86,6 +96,7 @@ function Shell() {
           <Routes>
             <Route path="/" element={<Home onAdd={openAdd} />} />
             <Route path="/library" element={<Library />} />
+            <Route path="/upcoming" element={<Upcoming />} />
             <Route path="/stats" element={<Stats />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/item/:id" element={<ItemDetail />} />

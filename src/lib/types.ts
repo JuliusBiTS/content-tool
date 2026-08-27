@@ -25,6 +25,36 @@ export interface ItemMetadata {
   runtimeMinutes?: number
   /** anime: prefer absolute episode counting in the UI */
   absoluteNumbering?: boolean
+  /** freestanding title-treatment logo (transparent PNG) */
+  logo_url?: string
+  tagline?: string
+  /** dominant colour sampled from the poster, "#rrggbb" */
+  accent?: string
+}
+
+/** One episode, cached from TMDB (never synced). */
+export interface EpisodeMeta {
+  season: number
+  number: number
+  name: string
+  overview: string
+  airDate: string | null
+  runtime: number | null
+  still: string | null
+}
+
+/** Per-show TMDB cache: detail + all episodes. Keyed by numeric TMDB tv id. */
+export interface ShowCache {
+  tmdbId: number
+  status: string | null
+  /** "Returning Series" shows get refreshed more often */
+  inProduction: boolean
+  backdrop: string | null
+  logo: string | null
+  tagline: string | null
+  nextAir: { season: number; number: number; name: string; airDate: string | null } | null
+  episodes: EpisodeMeta[]
+  fetchedAt: string
 }
 
 export interface Item {

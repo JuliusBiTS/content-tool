@@ -77,7 +77,7 @@ export function Library() {
           {items.map((item) => {
             const frac = progressFraction(item)
             return (
-              <Link key={item.id} to={`/item/${item.id}`}>
+              <Link key={item.id} to={`/item/${item.id}`} viewTransition>
                 <div className="relative">
                   <Poster
                     url={item.poster_url}

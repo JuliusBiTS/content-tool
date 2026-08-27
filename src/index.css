@@ -14,8 +14,14 @@
   --color-danger: #ff5c7c;
 
   --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Bricolage Grotesque', 'Inter', ui-sans-serif, system-ui, sans-serif;
 
   --radius-card: 1rem;
+}
+
+/* Per-scope accent (poster colour). Falls back to the brand accent. */
+:root {
+  --scene-accent: var(--color-accent);
 }
 
 /* ---------- Base ---------- */
@@ -38,6 +44,8 @@ body {
 #root {
   padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
+  position: relative;
+  isolation: isolate;
 }
 
 button {
@@ -54,6 +62,13 @@ textarea {
   font: inherit;
 }
 
+h1,
+h2,
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+}
+
 /* Hide scrollbars on horizontal shelves but keep scroll */
 .no-scrollbar {
   scrollbar-width: none;
@@ -62,6 +77,65 @@ textarea {
   display: none;
 }
 
+/* ---------- Cinematic layer ---------- */
+
+/* Film grain — fixed, ignores pointer, barely there */
+.grain::after {
+  content: '';
+  position: fixed;
+  inset: -50%;
+  z-index: 9998;
+  pointer-events: none;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  animation: grain 0.7s steps(2) infinite;
+}
+@keyframes grain {
+  0%,
+  100% { transform: translate(0, 0); }
+  50% { transform: translate(-1.5%, 1%); }
+}
+
+/* Backdrop stage: image bleeds behind content, fades into the page */
+.stage {
+  position: relative;
+}
+.stage-bg {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+}
+.stage-bg img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.stage-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(to bottom, rgb(11 11 15 / 0.35) 0%, rgb(11 11 15 / 0.6) 45%, var(--color-bg) 100%),
+    radial-gradient(120% 80% at 50% 0%, transparent 40%, rgb(11 11 15 / 0.5) 100%);
+}
+
+/* Scene glow tinted by the poster colour */
+.scene-glow::before {
+  content: '';
+  position: absolute;
+  inset: -20% -20% auto -20%;
+  height: 60%;
+  z-index: -1;
+  background: radial-gradient(
+    50% 100% at 50% 0%,
+    color-mix(in oklab, var(--scene-accent) 40%, transparent),
+    transparent 70%
+  );
+  pointer-events: none;
+}
+
+/* ---------- Motion ---------- */
 @keyframes pop {
   0% { transform: scale(1); }
   40% { transform: scale(1.18); }
@@ -69,4 +143,42 @@ textarea {
 }
 .animate-pop {
   animation: pop 0.28s ease-out;
+}
+
+@keyframes punch {
+  0% { transform: scale(1); filter: brightness(1); }
+  35% { transform: scale(0.94) rotate(-1deg); filter: brightness(1.4); }
+  100% { transform: scale(1) rotate(0); filter: brightness(1); }
+}
+.animate-punch {
+  animation: punch 0.4s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+@keyframes ring-sweep {
+  from { stroke-dashoffset: var(--sweep-from); }
+  to { stroke-dashoffset: var(--sweep-to); }
+}
+
+/* View Transitions: quick fade-through, respects reduced-motion below */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.22s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  .grain::after {
+    animation: none;
+  }
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
 }

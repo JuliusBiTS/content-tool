@@ -34,7 +34,7 @@ Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
 
   try {
-    const { mode, q, type, id } = await req.json()
+    const { mode, q, type, id, season } = await req.json()
 
     if (mode === 'search') {
       if (!q || String(q).trim().length < 2) return json({ results: [] })
@@ -47,6 +47,22 @@ Deno.serve(async (req: Request) => {
     if (mode === 'detail') {
       if (type !== 'tv' && type !== 'movie') return json({ error: 'bad type' }, 400)
       const data = await tmdb(`/${type}/${encodeURIComponent(String(id))}`)
+      return json(data)
+    }
+
+    // Full show payload: status, next/last episode to air, backdrop + logo.
+    if (mode === 'show') {
+      const data = await tmdb(
+        `/tv/${encodeURIComponent(String(id))}?append_to_response=images&include_image_language=de,en,null`,
+      )
+      return json(data)
+    }
+
+    // One season's episode list (titles, air dates, runtimes, stills).
+    if (mode === 'season') {
+      const data = await tmdb(
+        `/tv/${encodeURIComponent(String(id))}/season/${encodeURIComponent(String(season))}`,
+      )
       return json(data)
     }
 

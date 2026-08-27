@@ -9,13 +9,39 @@ import {
 } from '../lib/sync'
 import { useAllItems } from '../hooks/useData'
 import { ImportSheet } from '../components/ImportSheet'
+import { soundEnabled, setSoundEnabled, punchSound } from '../lib/fx'
+import {
+  pushStatus,
+  enablePush,
+  disablePush,
+  pushSupported,
+} from '../lib/push'
 
 export function Profile() {
   const { session, localOnly, signOut } = useAuth()
   const items = useAllItems()
   const [s, setS] = useState<SyncState | null>(null)
   const [importOpen, setImportOpen] = useState(false)
+  const [sound, setSound] = useState(soundEnabled())
+  const [push, setPush] = useState<
+    'unsupported' | 'off' | 'on' | 'denied' | 'busy'
+  >('off')
   useEffect(() => subscribeSync(setS), [])
+  useEffect(() => {
+    void pushStatus().then(setPush)
+  }, [])
+
+  async function togglePush() {
+    if (push === 'on') {
+      setPush('busy')
+      await disablePush()
+      setPush('off')
+    } else {
+      setPush('busy')
+      const r = await enablePush()
+      setPush(r === 'on' ? 'on' : r === 'denied' ? 'denied' : 'off')
+    }
+  }
 
   return (
     <div className="mx-auto max-w-xl px-4 pb-28 pt-4 lg:px-8 lg:pb-10 lg:pt-8">
@@ -47,6 +73,43 @@ export function Profile() {
           {s.error}
         </p>
       )}
+
+      {pushSupported() && (
+        <label className="mt-4 flex items-center justify-between rounded-card border border-border bg-surface p-4 text-sm">
+          <span>
+            Benachrichtigung bei neuen Folgen
+            <span className="block text-xs text-muted">
+              {push === 'denied'
+                ? 'Im Browser blockiert — in den Website-Einstellungen erlauben'
+                : 'Push, wenn eine Folge deiner laufenden Serien ausgestrahlt wird'}
+            </span>
+          </span>
+          <input
+            type="checkbox"
+            disabled={push === 'busy' || push === 'denied'}
+            checked={push === 'on'}
+            onChange={() => void togglePush()}
+            className="h-5 w-5 accent-[var(--color-accent)]"
+          />
+        </label>
+      )}
+
+      <label className="mt-4 flex items-center justify-between rounded-card border border-border bg-surface p-4 text-sm">
+        <span>
+          Sound-Effekt beim Loggen
+          <span className="block text-xs text-muted">Leiser „Tick" bei „+1"</span>
+        </span>
+        <input
+          type="checkbox"
+          checked={sound}
+          onChange={(e) => {
+            setSound(e.target.checked)
+            setSoundEnabled(e.target.checked)
+            if (e.target.checked) punchSound()
+          }}
+          className="h-5 w-5 accent-[var(--color-accent)]"
+        />
+      </label>
 
       <div className="mt-4 space-y-2">
         <button
