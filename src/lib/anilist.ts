@@ -3,11 +3,13 @@ import type { SearchResult, SeasonMeta } from './types'
 const ENDPOINT = 'https://graphql.anilist.co'
 
 const SEARCH_QUERY = `
-query ($search: String) {
+query ($search: String, $type: MediaType) {
   Page(page: 1, perPage: 15) {
-    media(search: $search, type: ANIME, sort: SEARCH_MATCH) {
+    media(search: $search, type: $type, sort: SEARCH_MATCH) {
       id
       episodes
+      chapters
+      startDate { year }
       seasonYear
       format
       description(asHtml: false)
@@ -20,7 +22,9 @@ query ($search: String) {
 interface AniListMedia {
   id: number
   episodes: number | null
+  chapters: number | null
   seasonYear: number | null
+  startDate: { year: number | null } | null
   format: string | null
   description: string | null
   title: { romaji: string | null; english: string | null; native: string | null }
@@ -36,60 +40,103 @@ function stripHtml(s: string | null): string | null {
   return s.replace(/<[^>]*>/g, '').trim() || null
 }
 
-export async function searchAnime(query: string): Promise<SearchResult[]> {
+async function query<T>(q: string, variables: Record<string, unknown>): Promise<T> {
   const res = await fetch(ENDPOINT, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify({ query: SEARCH_QUERY, variables: { search: query } }),
+    body: JSON.stringify({ query: q, variables }),
   })
   if (!res.ok) throw new Error(`AniList ${res.status}`)
-  const json = (await res.json()) as { data?: { Page?: { media?: AniListMedia[] } } }
-  const media = json.data?.Page?.media ?? []
-  return media.map((m) => ({
+  return (await res.json()) as T
+}
+
+async function search(
+  q: string,
+  type: 'ANIME' | 'MANGA',
+  kind: 'anime' | 'manga',
+): Promise<SearchResult[]> {
+  const json = await query<{ data?: { Page?: { media?: AniListMedia[] } } }>(SEARCH_QUERY, {
+    search: q,
+    type,
+  })
+  return (json.data?.Page?.media ?? []).map((m) => ({
     source: 'anilist' as const,
     source_id: String(m.id),
-    kind: 'anime' as const,
+    kind,
     title: pickTitle(m.title),
-    year: m.seasonYear,
+    year: m.seasonYear ?? m.startDate?.year ?? null,
     poster_url: m.coverImage.large,
-    overview: stripHtml(m.description),
+    overview:
+      stripHtml(m.description) ??
+      (m.chapters ? `${m.chapters} Kapitel` : m.episodes ? `${m.episodes} Folgen` : null),
   }))
 }
 
+export const searchAnime = (q: string) => search(q, 'ANIME', 'anime')
+export const searchManga = (q: string) => search(q, 'MANGA', 'manga')
+
 const DETAIL_QUERY = `
 query ($id: Int) {
-  Media(id: $id, type: ANIME) {
+  Media(id: $id) {
+    type
     episodes
+    chapters
+    volumes
     seasonYear
+    startDate { year }
+    averageScore
+    genres
     description(asHtml: false)
-    title { romaji english native }
+    staff(perPage: 3, sort: RELEVANCE) { nodes { name { full } } }
   }
 }`
 
-export interface AnimeDetail {
-  episodes: number | null
+export interface AniListDetail {
+  type: 'ANIME' | 'MANGA'
+  /** episodes (anime) or chapters (manga) */
+  units: number | null
   year: number | null
   overview: string | null
-  /** AniList entries are single-cour; expose one pseudo-season. */
+  externalRating: number | null
+  genres: string[]
+  creators: string[]
   seasons: SeasonMeta[]
 }
 
-export async function getAnimeDetail(id: string): Promise<AnimeDetail> {
-  const res = await fetch(ENDPOINT, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify({ query: DETAIL_QUERY, variables: { id: Number(id) } }),
-  })
-  if (!res.ok) throw new Error(`AniList ${res.status}`)
-  const json = (await res.json()) as {
-    data?: { Media?: { episodes: number | null; seasonYear: number | null; description: string | null } }
-  }
+export async function getAniListDetail(id: string): Promise<AniListDetail> {
+  const json = await query<{
+    data?: {
+      Media?: {
+        type: 'ANIME' | 'MANGA'
+        episodes: number | null
+        chapters: number | null
+        seasonYear: number | null
+        startDate: { year: number | null } | null
+        averageScore: number | null
+        genres: string[] | null
+        description: string | null
+        staff: { nodes: { name: { full: string | null } }[] } | null
+      }
+    }
+  }>(DETAIL_QUERY, { id: Number(id) })
+
   const m = json.data?.Media
-  const episodes = m?.episodes ?? null
+  const isManga = m?.type === 'MANGA'
+  const units = isManga ? (m?.chapters ?? null) : (m?.episodes ?? null)
   return {
-    episodes,
-    year: m?.seasonYear ?? null,
+    type: m?.type ?? 'ANIME',
+    units,
+    year: m?.seasonYear ?? m?.startDate?.year ?? null,
     overview: stripHtml(m?.description ?? null),
-    seasons: episodes ? [{ number: 1, name: 'Staffel 1', episodeCount: episodes }] : [],
+    externalRating: m?.averageScore != null ? m.averageScore / 10 : null,
+    genres: m?.genres ?? [],
+    creators: (m?.staff?.nodes ?? [])
+      .map((n) => n.name.full)
+      .filter((x): x is string => !!x),
+    seasons:
+      !isManga && units ? [{ number: 1, name: 'Staffel 1', episodeCount: units }] : [],
   }
 }
+
+/** @deprecated use getAniListDetail */
+export const getAnimeDetail = getAniListDetail

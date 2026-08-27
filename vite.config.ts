@@ -26,6 +26,24 @@ export default defineConfig({
           method: 'GET',
           params: { title: 'title', text: 'text', url: 'url' },
         },
+        shortcuts: [
+          {
+            name: 'Nächste Folge loggen',
+            short_name: '+1 Folge',
+            url: '/quicklog',
+            icons: [{ src: 'pwa-192.png', sizes: '192x192' }],
+          },
+          {
+            name: 'Diese Woche',
+            url: '/upcoming',
+            icons: [{ src: 'pwa-192.png', sizes: '192x192' }],
+          },
+          {
+            name: 'Hinzufügen',
+            url: '/add',
+            icons: [{ src: 'pwa-192.png', sizes: '192x192' }],
+          },
+        ],
         icons: [
           { src: 'pwa-192.png', sizes: '192x192', type: 'image/png' },
           { src: 'pwa-512.png', sizes: '512x512', type: 'image/png' },

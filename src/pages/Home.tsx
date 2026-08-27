@@ -23,13 +23,14 @@ export function Home({ onAdd }: { onAdd: () => void }) {
     <div className="pb-28 lg:pb-10">
       <header className="flex items-center justify-between px-4 pb-3 pt-4 lg:px-8 lg:pt-8">
         <h1 className="font-display text-xl font-bold lg:text-2xl">Weiterschauen</h1>
-        <div className="flex items-center gap-3">
-          <Link to="/stats" className="text-lg text-muted lg:hidden" aria-label="Statistik">
+        <div className="flex items-center gap-4 lg:hidden">
+          <Link to="/discover" className="text-lg text-muted" aria-label="Entdecken">
+            ✦
+          </Link>
+          <Link to="/stats" className="text-lg text-muted" aria-label="Statistik">
             ◔
           </Link>
-          <div className="lg:hidden">
-            <SyncPill />
-          </div>
+          <SyncPill />
         </div>
       </header>
 

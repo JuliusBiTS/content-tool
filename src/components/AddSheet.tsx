@@ -4,6 +4,7 @@ import { Sheet } from './Sheet'
 import { useAuth } from '../lib/auth'
 import { runSearch, type SearchScope } from '../lib/search'
 import { addFromSearch, addManual } from '../lib/repo'
+import { KIND_LABEL } from '../lib/kinds'
 import type { ItemStatus, MediaKind, SearchResult } from '../lib/types'
 
 const SCOPES: { key: SearchScope; label: string }[] = [
@@ -11,6 +12,7 @@ const SCOPES: { key: SearchScope; label: string }[] = [
   { key: 'series', label: 'Serien' },
   { key: 'movie', label: 'Filme' },
   { key: 'anime', label: 'Anime' },
+  { key: 'manga', label: 'Manga' },
   { key: 'book', label: 'Bücher' },
 ]
 
@@ -168,7 +170,7 @@ export function AddSheet({
                     <span className="truncate font-medium">{r.title}</span>
                   </div>
                   <div className="mt-0.5 text-xs text-muted">
-                    {r.year ?? '—'} · {SOURCE_BADGE[r.source]} · {kindLabel(r.kind)}
+                    {r.year ?? '—'} · {SOURCE_BADGE[r.source]} · {KIND_LABEL[r.kind]}
                   </div>
                   {r.overview && (
                     <p className="mt-1 line-clamp-2 text-xs text-muted">{r.overview}</p>
@@ -198,6 +200,3 @@ export function AddSheet({
   )
 }
 
-function kindLabel(k: MediaKind): string {
-  return { series: 'Serie', movie: 'Film', anime: 'Anime', book: 'Buch' }[k]
-}

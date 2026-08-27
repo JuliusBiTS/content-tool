@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Poster } from '../components/Poster'
 import { Stage } from '../components/Stage'
@@ -8,9 +8,19 @@ import { QuickPositionSheet } from '../components/QuickPositionSheet'
 import { useToast } from '../components/Toast'
 import { useItem, useItemEvents } from '../hooks/useData'
 import { useShow, useNextEpisode, usePosterAccent } from '../hooks/useShow'
-import { bumpProgress, setMetadata, setPosition, setRating, setStatus, softDelete } from '../lib/repo'
-import { bumpFx } from '../lib/fx'
+import {
+  bumpProgress,
+  setMetadata,
+  setPosition,
+  setRating,
+  setStatus,
+  softDelete,
+  startRewatch,
+} from '../lib/repo'
+import { bumpFx, celebrate, spoilerGuard } from '../lib/fx'
+import { getWatchProviders, type Provider } from '../lib/tmdb'
 import { nextActionLabel, positionLabel, progressFraction, realSeasons } from '../lib/progress'
+import { KIND_LABEL } from '../lib/kinds'
 import type { ItemStatus } from '../lib/types'
 
 const STATUS_LABELS: Record<ItemStatus, string> = {
@@ -20,7 +30,6 @@ const STATUS_LABELS: Record<ItemStatus, string> = {
   done: 'Fertig',
   dropped: 'Abgebrochen',
 }
-const KIND_LABEL = { series: 'Serie', movie: 'Film', anime: 'Anime', book: 'Buch' }
 
 function relDays(iso: string | null): string | null {
   if (!iso) return null
@@ -43,9 +52,18 @@ export function ItemDetail() {
   const accent = usePosterAccent(item)
   const [quickOpen, setQuickOpen] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [providers, setProviders] = useState<Provider[]>([])
   const posterRef = useRef<HTMLDivElement>(null)
 
   const seasons = useMemo(() => (item ? realSeasons(item) : []), [item])
+
+  useEffect(() => {
+    if (item?.source === 'tmdb' && item.source_id) {
+      getWatchProviders(item.source_id).then(setProviders).catch(() => {})
+    } else {
+      setProviders([])
+    }
+  }, [item?.source, item?.source_id])
 
   if (item === undefined) return <div className="p-8 text-center text-muted">Lädt…</div>
   if (!item) {
@@ -82,8 +100,10 @@ export function ItemDetail() {
     void posterRef.current?.offsetWidth
     posterRef.current?.classList.add('animate-punch')
     const prev = item!.current_position
+    const wasDone = item!.status === 'done'
     try {
       const updated = await bumpProgress(item!)
+      if (updated.status === 'done' && !wasDone) celebrate(accent ?? undefined)
       toast.show(positionLabel(updated), {
         label: 'Rückgängig',
         run: () => void setPosition(updated, prev),
@@ -130,7 +150,29 @@ export function ItemDetail() {
             <p className="mt-1.5 text-sm text-muted">
               {item.metadata.year ?? '—'} · {KIND_LABEL[item.kind]}
               {show?.status === 'Ended' ? ' · abgeschlossen' : ''}
+              {item.metadata.rewatches
+                ? ` · ${item.metadata.rewatches}× erneut`
+                : ''}
             </p>
+            {providers.length > 0 && (
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                {providers.slice(0, 5).map((p) =>
+                  p.logo ? (
+                    <img
+                      key={p.name}
+                      src={p.logo}
+                      alt={p.name}
+                      title={p.name}
+                      className="h-6 w-6 rounded-md"
+                    />
+                  ) : (
+                    <span key={p.name} className="text-xs text-white/70">
+                      {p.name}
+                    </span>
+                  ),
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -145,20 +187,39 @@ export function ItemDetail() {
         )}
 
         <div className="mt-4 flex gap-2">
-          <button
-            onClick={() => void bump()}
-            disabled={busy}
-            className="flex-1 truncate rounded-lg py-3 font-semibold text-white shadow-lg active:scale-[0.98] disabled:opacity-50"
-            style={{ background: 'var(--scene-accent)' }}
-          >
-            ▶ {nextLabel}
-          </button>
+          {item.status === 'done' ? (
+            <button
+              onClick={() => void startRewatch(item)}
+              className="flex-1 rounded-lg py-3 font-semibold text-white shadow-lg active:scale-[0.98]"
+              style={{ background: 'var(--scene-accent)' }}
+            >
+              ↻ {isEpisodic ? 'Neu schauen' : item.kind === 'book' || item.kind === 'manga' ? 'Neu lesen' : 'Erneut ansehen'}
+            </button>
+          ) : (
+            <button
+              onClick={() => void bump()}
+              disabled={busy}
+              className="flex-1 truncate rounded-lg py-3 font-semibold text-white shadow-lg active:scale-[0.98] disabled:opacity-50"
+              style={{ background: 'var(--scene-accent)' }}
+            >
+              ▶ {nextLabel}
+            </button>
+          )}
           <button
             onClick={() => setQuickOpen(true)}
             className="rounded-lg border border-white/20 bg-black/30 px-4 py-3 font-medium backdrop-blur"
           >
             Position
           </button>
+          {isEpisodic && item.backdrop_url && (
+            <button
+              onClick={() => navigate(`/watch/${item.id}`)}
+              aria-label="Kino-Modus"
+              className="rounded-lg border border-white/20 bg-black/30 px-3 py-3 backdrop-blur"
+            >
+              ⛶
+            </button>
+          )}
         </div>
       </Stage>
 
@@ -209,6 +270,7 @@ export function ItemDetail() {
                     start={start}
                     position={item.current_position}
                     episodes={show?.episodes ?? []}
+                    spoiler={spoilerGuard()}
                     onSet={(abs) => void setPosition(item, abs)}
                   />
                 ))}
@@ -300,6 +362,7 @@ function SeasonBlock({
   start,
   position,
   episodes,
+  spoiler,
   onSet,
 }: {
   seasonNum: number
@@ -308,10 +371,12 @@ function SeasonBlock({
   start: number
   position: number
   episodes: { season: number; number: number; name: string; runtime: number | null; still: string | null }[]
+  spoiler: boolean
   onSet: (abs: number) => void
 }) {
   const rich = episodes.filter((e) => e.season === seasonNum)
   const useRich = rich.length >= count - 1 && rich.length > 0
+  const [revealed, setRevealed] = useState<Set<number>>(new Set())
 
   return (
     <div>
@@ -328,6 +393,7 @@ function SeasonBlock({
             const abs = start + ep
             const watched = position >= abs
             const meta = rich.find((e) => e.number === ep)
+            const hidden = spoiler && !watched && !revealed.has(ep)
             return (
               <button
                 key={ep}
@@ -343,7 +409,10 @@ function SeasonBlock({
                       src={meta.still}
                       alt=""
                       loading="lazy"
-                      className={'h-full w-full object-cover ' + (watched ? '' : 'opacity-70')}
+                      className={
+                        'h-full w-full object-cover transition ' +
+                        (hidden ? 'blur-md brightness-50' : watched ? '' : 'opacity-70')
+                      }
                     />
                   )}
                   <span className="absolute bottom-0.5 left-1 text-[10px] font-bold tabular-nums drop-shadow">
@@ -351,9 +420,23 @@ function SeasonBlock({
                   </span>
                 </div>
                 <span className="min-w-0 flex-1 truncate text-xs">
-                  {meta?.name ?? `Folge ${ep}`}
+                  {hidden ? `Folge ${ep}` : (meta?.name ?? `Folge ${ep}`)}
                 </span>
-                {watched && <span className="pr-1 text-xs text-[var(--scene-accent)]">✓</span>}
+                {hidden ? (
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setRevealed((s) => new Set(s).add(ep))
+                    }}
+                    className="pr-1 text-xs text-muted"
+                  >
+                    👁
+                  </span>
+                ) : (
+                  watched && <span className="pr-1 text-xs text-[var(--scene-accent)]">✓</span>
+                )}
               </button>
             )
           })}
@@ -392,6 +475,10 @@ function describeEvent(kind: string, from: number | null, to: number | null): st
       return to ? `Bewertet: ${(to / 2).toFixed(1)}★` : 'Bewertung entfernt'
     case 'progress':
       return `Fortschritt ${from ?? 0} → ${to ?? 0}`
+    case 'rewatch':
+      return 'Neuer Durchlauf gestartet'
+    case 'note':
+      return 'Notiz'
     default:
       return kind
   }

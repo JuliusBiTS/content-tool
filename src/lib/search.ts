@@ -1,4 +1,4 @@
-import { getAnimeDetail, searchAnime } from './anilist'
+import { getAniListDetail, searchAnime, searchManga } from './anilist'
 import { getBookPages, searchBooks } from './googlebooks'
 import { getTmdbDetail, searchTmdb } from './tmdb'
 import type { ItemMetadata, MediaKind, SearchResult } from './types'
@@ -12,6 +12,7 @@ export async function runSearch(query: string, scope: SearchScope): Promise<Sear
   const tasks: Promise<SearchResult[]>[] = []
   if (scope === 'all' || scope === 'series' || scope === 'movie') tasks.push(safe(searchTmdb(q)))
   if (scope === 'all' || scope === 'anime') tasks.push(safe(searchAnime(q)))
+  if (scope === 'all' || scope === 'manga') tasks.push(safe(searchManga(q)))
   if (scope === 'all' || scope === 'book') tasks.push(safe(searchBooks(q)))
 
   const settled = await Promise.all(tasks)
@@ -35,7 +36,7 @@ export interface ResolvedMeta {
   metadata: ItemMetadata
 }
 
-/** Fetch full details (seasons/pages/runtime) for a chosen search result. */
+/** Fetch full details (seasons/pages/chapters/runtime/genres) for a chosen result. */
 export async function resolveMeta(result: SearchResult): Promise<ResolvedMeta> {
   try {
     if (result.source === 'tmdb') {
@@ -47,18 +48,24 @@ export async function resolveMeta(result: SearchResult): Promise<ResolvedMeta> {
           overview: d.overview ?? undefined,
           year: d.year ?? undefined,
           runtimeMinutes: d.runtimeMinutes ?? undefined,
+          genres: d.genres,
+          creators: d.creators,
+          externalRating: d.externalRating ?? undefined,
         },
       }
     }
     if (result.source === 'anilist') {
-      const d = await getAnimeDetail(result.source_id)
+      const d = await getAniListDetail(result.source_id)
       return {
-        total_units: d.episodes,
+        total_units: d.units,
         metadata: {
           seasons: d.seasons,
           overview: d.overview ?? undefined,
           year: d.year ?? undefined,
           absoluteNumbering: true,
+          genres: d.genres,
+          creators: d.creators,
+          externalRating: d.externalRating ?? undefined,
         },
       }
     }

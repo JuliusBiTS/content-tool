@@ -10,6 +10,7 @@ const KINDS: { key: MediaKind | 'all'; label: string }[] = [
   { key: 'series', label: 'Serien' },
   { key: 'movie', label: 'Filme' },
   { key: 'anime', label: 'Anime' },
+  { key: 'manga', label: 'Manga' },
   { key: 'book', label: 'Bücher' },
 ]
 

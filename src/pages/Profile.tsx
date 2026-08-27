@@ -9,7 +9,14 @@ import {
 } from '../lib/sync'
 import { useAllItems } from '../hooks/useData'
 import { ImportSheet } from '../components/ImportSheet'
-import { soundEnabled, setSoundEnabled, punchSound } from '../lib/fx'
+import { exportJson, exportCsv } from '../lib/export'
+import {
+  soundEnabled,
+  setSoundEnabled,
+  punchSound,
+  spoilerGuard,
+  setSpoilerGuard,
+} from '../lib/fx'
 import {
   pushStatus,
   enablePush,
@@ -23,6 +30,7 @@ export function Profile() {
   const [s, setS] = useState<SyncState | null>(null)
   const [importOpen, setImportOpen] = useState(false)
   const [sound, setSound] = useState(soundEnabled())
+  const [spoilers, setSpoilers] = useState(spoilerGuard())
   const [push, setPush] = useState<
     'unsupported' | 'off' | 'on' | 'denied' | 'busy'
   >('off')
@@ -96,6 +104,24 @@ export function Profile() {
 
       <label className="mt-4 flex items-center justify-between rounded-card border border-border bg-surface p-4 text-sm">
         <span>
+          Spoiler-Schutz
+          <span className="block text-xs text-muted">
+            Titel &amp; Bilder ungesehener Folgen unscharf
+          </span>
+        </span>
+        <input
+          type="checkbox"
+          checked={spoilers}
+          onChange={(e) => {
+            setSpoilers(e.target.checked)
+            setSpoilerGuard(e.target.checked)
+          }}
+          className="h-5 w-5 accent-[var(--color-accent)]"
+        />
+      </label>
+
+      <label className="mt-4 flex items-center justify-between rounded-card border border-border bg-surface p-4 text-sm">
+        <span>
           Sound-Effekt beim Loggen
           <span className="block text-xs text-muted">Leiser „Tick" bei „+1"</span>
         </span>
@@ -118,6 +144,20 @@ export function Profile() {
         >
           Aus Letterboxd importieren
         </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => void exportJson()}
+            className="flex-1 rounded-lg border border-border py-2.5 text-sm"
+          >
+            Export JSON
+          </button>
+          <button
+            onClick={() => void exportCsv()}
+            className="flex-1 rounded-lg border border-border py-2.5 text-sm"
+          >
+            Export CSV
+          </button>
+        </div>
         {!localOnly && (
           <button
             onClick={() => void runSync()}

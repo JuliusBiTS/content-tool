@@ -1,5 +1,11 @@
 import Dexie, { type EntityTable } from 'dexie'
-import type { Item, OutboxOp, ProgressEvent, ShowCache } from './types'
+import type {
+  EpisodeNote,
+  Item,
+  OutboxOp,
+  ProgressEvent,
+  ShowCache,
+} from './types'
 
 /**
  * Local-first cache. The app reads/writes here first; the sync engine
@@ -11,6 +17,7 @@ import type { Item, OutboxOp, ProgressEvent, ShowCache } from './types'
 class MediaLogDB extends Dexie {
   items!: EntityTable<Item, 'id'>
   events!: EntityTable<ProgressEvent, 'id'>
+  episodeNotes!: EntityTable<EpisodeNote, 'id'>
   outbox!: EntityTable<OutboxOp, 'id'>
   meta!: EntityTable<{ key: string; value: string }, 'key'>
   shows!: EntityTable<ShowCache, 'tmdbId'>
@@ -27,6 +34,15 @@ class MediaLogDB extends Dexie {
     this.version(2).stores({
       items: 'id, status, kind, updated_at, sort_title',
       events: 'id, item_id, occurred_at',
+      outbox: 'id, created_at',
+      meta: 'key',
+      shows: 'tmdbId, fetchedAt',
+      palettes: 'url',
+    })
+    this.version(3).stores({
+      items: 'id, status, kind, updated_at, sort_title',
+      events: 'id, item_id, occurred_at',
+      episodeNotes: 'id, item_id, updated_at',
       outbox: 'id, created_at',
       meta: 'key',
       shows: 'tmdbId, fetchedAt',

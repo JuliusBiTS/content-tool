@@ -46,17 +46,24 @@ export async function searchTmdb(query: string): Promise<SearchResult[]> {
     })
 }
 
-interface TmdbTvDetail {
+interface TmdbCommon {
+  overview: string
+  vote_average?: number
+  genres?: { name: string }[]
+}
+
+interface TmdbTvDetail extends TmdbCommon {
   number_of_episodes: number
   first_air_date: string | null
-  overview: string
+  episode_run_time?: number[]
+  created_by?: { name: string }[]
   seasons: { season_number: number; name: string; episode_count: number }[]
 }
 
-interface TmdbMovieDetail {
+interface TmdbMovieDetail extends TmdbCommon {
   runtime: number | null
   release_date: string | null
-  overview: string
+  credits?: { crew?: { job: string; name: string }[] }
 }
 
 export interface MediaDetail {
@@ -65,12 +72,17 @@ export interface MediaDetail {
   totalUnits: number | null
   seasons: SeasonMeta[]
   runtimeMinutes: number | null
+  genres: string[]
+  creators: string[]
+  externalRating: number | null
 }
 
 /** source_id is "tv:123" or "movie:123". */
 export async function getTmdbDetail(sourceId: string): Promise<MediaDetail> {
   const [type, id] = sourceId.split(':')
   const data = await callFn<TmdbTvDetail | TmdbMovieDetail>({ mode: 'detail', type, id })
+  const genres = (data.genres ?? []).map((g) => g.name)
+  const externalRating = data.vote_average ? Number(data.vote_average.toFixed(1)) : null
 
   if (type === 'tv') {
     const d = data as TmdbTvDetail
@@ -78,7 +90,10 @@ export async function getTmdbDetail(sourceId: string): Promise<MediaDetail> {
       overview: d.overview || null,
       year: d.first_air_date ? Number(d.first_air_date.slice(0, 4)) : null,
       totalUnits: d.number_of_episodes || null,
-      runtimeMinutes: null,
+      runtimeMinutes: d.episode_run_time?.[0] ?? null,
+      genres,
+      externalRating,
+      creators: (d.created_by ?? []).map((c) => c.name),
       seasons: (d.seasons ?? [])
         .filter((s) => s.season_number > 0)
         .map((s) => ({
@@ -95,6 +110,81 @@ export async function getTmdbDetail(sourceId: string): Promise<MediaDetail> {
     year: d.release_date ? Number(d.release_date.slice(0, 4)) : null,
     totalUnits: d.runtime || null,
     runtimeMinutes: d.runtime || null,
+    genres,
+    externalRating,
+    creators: (d.credits?.crew ?? [])
+      .filter((c) => c.job === 'Director')
+      .map((c) => c.name),
     seasons: [],
   }
+}
+
+// ---------- Discover ----------
+
+export interface Provider {
+  name: string
+  logo: string | null
+}
+
+/** Flatrate streaming providers for a title in the given region. */
+export async function getWatchProviders(
+  sourceId: string,
+  region = 'DE',
+): Promise<Provider[]> {
+  const [type, id] = sourceId.split(':')
+  if (type !== 'tv' && type !== 'movie') return []
+  const data = await callFn<{
+    results?: Record<string, { flatrate?: { provider_name: string; logo_path: string }[] }>
+  }>({ mode: 'providers', type, id })
+  const list = data.results?.[region]?.flatrate ?? []
+  return list.map((p) => ({ name: p.provider_name, logo: tmdbPoster(p.logo_path, 'w92') }))
+}
+
+export async function getRecommendations(sourceId: string): Promise<SearchResult[]> {
+  const [type, id] = sourceId.split(':')
+  if (type !== 'tv' && type !== 'movie') return []
+  const data = await callFn<{
+    recommendations?: { results: TmdbSearchItem[] }
+    similar?: { results: TmdbSearchItem[] }
+  }>({ mode: 'recommendations', type, id })
+  const seen = new Set<number>()
+  const rows: SearchResult[] = []
+  for (const r of [
+    ...(data.recommendations?.results ?? []),
+    ...(data.similar?.results ?? []),
+  ]) {
+    if (seen.has(r.id)) continue
+    seen.add(r.id)
+    const isTv = type === 'tv'
+    const date = isTv ? r.first_air_date : r.release_date
+    rows.push({
+      source: 'tmdb',
+      source_id: `${type}:${r.id}`,
+      kind: isTv ? 'series' : 'movie',
+      title: (isTv ? r.name : r.title) ?? 'Unbenannt',
+      year: date ? Number(date.slice(0, 4)) : null,
+      poster_url: tmdbPoster(r.poster_path),
+      overview: r.overview || null,
+    })
+  }
+  return rows
+}
+
+export async function getTrending(): Promise<SearchResult[]> {
+  const data = await callFn<{ results: TmdbSearchItem[] }>({ mode: 'trending' })
+  return (data.results ?? [])
+    .filter((r) => r.media_type === 'tv' || r.media_type === 'movie')
+    .map((r) => {
+      const isTv = r.media_type === 'tv'
+      const date = isTv ? r.first_air_date : r.release_date
+      return {
+        source: 'tmdb' as const,
+        source_id: `${r.media_type}:${r.id}`,
+        kind: (isTv ? 'series' : 'movie') as SearchResult['kind'],
+        title: (isTv ? r.name : r.title) ?? 'Unbenannt',
+        year: date ? Number(date.slice(0, 4)) : null,
+        poster_url: tmdbPoster(r.poster_path),
+        overview: r.overview || null,
+      }
+    })
 }

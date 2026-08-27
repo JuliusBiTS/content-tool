@@ -1,4 +1,4 @@
-export type MediaKind = 'series' | 'movie' | 'anime' | 'book'
+export type MediaKind = 'series' | 'movie' | 'anime' | 'book' | 'manga'
 
 export type ItemStatus = 'watching' | 'done' | 'planned' | 'paused' | 'dropped'
 
@@ -23,13 +23,22 @@ export interface ItemMetadata {
   overview?: string
   year?: number
   runtimeMinutes?: number
-  /** anime: prefer absolute episode counting in the UI */
+  /** anime / manga: prefer absolute counting in the UI */
   absoluteNumbering?: boolean
   /** freestanding title-treatment logo (transparent PNG) */
   logo_url?: string
   tagline?: string
   /** dominant colour sampled from the poster, "#rrggbb" */
   accent?: string
+  /** genre names (TMDB / AniList) */
+  genres?: string[]
+  /** creators / authors / directors */
+  creators?: string[]
+  /** TMDB / AniList community score, 0–10 */
+  externalRating?: number
+  /** completed rewatches / rereads */
+  rewatches?: number
+  /** manga: chapters per volume boundary is ignored; unit is chapters */
 }
 
 /** One episode, cached from TMDB (never synced). */
@@ -82,7 +91,25 @@ export interface Item {
   deleted_at: string | null
 }
 
-export type EventKind = 'progress' | 'status' | 'rating' | 'add'
+export type EventKind =
+  | 'progress'
+  | 'status'
+  | 'rating'
+  | 'add'
+  | 'rewatch'
+  | 'note'
+
+export interface EpisodeNote {
+  id: string
+  user_id: string
+  item_id: string
+  season: number
+  episode: number
+  note: string | null
+  rating: number | null
+  updated_at: string
+  created_at: string
+}
 
 export interface ProgressEvent {
   id: string
@@ -99,7 +126,7 @@ export interface ProgressEvent {
 /** Local-only outbox row for offline-first writes */
 export interface OutboxOp {
   id: string
-  table: 'items' | 'events'
+  table: 'items' | 'events' | 'episode_notes'
   op: 'insert' | 'update'
   row_id: string
   payload: Record<string, unknown>

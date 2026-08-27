@@ -1,5 +1,7 @@
 import type { Item, SeasonMeta } from './types'
 
+export const EPISODIC: Item['kind'][] = ['series', 'anime']
+
 /** Real seasons (excludes specials / season 0), sorted. */
 export function realSeasons(item: Item): SeasonMeta[] {
   return (item.metadata.seasons ?? [])
@@ -34,13 +36,17 @@ export function positionLabel(item: Item): string {
   const pos = item.current_position
   switch (item.kind) {
     case 'movie': {
+      if (item.status === 'done') return 'Gesehen'
       if (!item.total_units) return pos > 0 ? 'Angesehen' : 'Nicht gestartet'
-      const pct = Math.round((pos / item.total_units) * 100)
-      return `${pct}%`
+      return `${Math.round((pos / item.total_units) * 100)}%`
     }
     case 'book': {
       if (!item.total_units) return `Seite ${pos}`
       return `S. ${pos} / ${item.total_units}`
+    }
+    case 'manga': {
+      if (pos <= 0) return 'Noch nicht gestartet'
+      return item.total_units ? `Kap. ${pos} / ${item.total_units}` : `Kapitel ${pos}`
     }
     default: {
       if (pos <= 0) return 'Noch nicht gestartet'
@@ -57,13 +63,15 @@ export function positionLabel(item: Item): string {
 
 /** Label for the primary "+1" button. */
 export function nextActionLabel(item: Item): string {
+  const next = item.current_position + 1
   switch (item.kind) {
     case 'movie':
       return item.current_position > 0 ? 'Erneut ansehen' : 'Als gesehen markieren'
     case 'book':
       return '+10 Seiten'
+    case 'manga':
+      return `Kapitel ${next}`
     default: {
-      const next = item.current_position + 1
       if (item.metadata.absoluteNumbering) return `Folge ${next}`
       const se = absoluteToSeasonEpisode(item, next)
       return se ? `S${se.season} E${se.episode}` : `Folge ${next}`
@@ -78,16 +86,32 @@ export function stepSize(item: Item): number {
   return 1
 }
 
+function totalUnits(item: Item): number | null {
+  return EPISODIC.includes(item.kind) ? totalEpisodes(item) : item.total_units
+}
+
 export function progressFraction(item: Item): number | null {
-  const total =
-    item.kind === 'series' || item.kind === 'anime' ? totalEpisodes(item) : item.total_units
+  const total = totalUnits(item)
   if (!total || total <= 0) return null
   return Math.max(0, Math.min(1, item.current_position / total))
 }
 
 export function isComplete(item: Item, nextPos: number): boolean {
-  const total =
-    item.kind === 'series' || item.kind === 'anime' ? totalEpisodes(item) : item.total_units
+  const total = totalUnits(item)
   if (!total) return false
   return nextPos >= total
+}
+
+/** Unit noun for the current kind, for labels. */
+export function unitNoun(kind: Item['kind'], plural = false): string {
+  switch (kind) {
+    case 'movie':
+      return plural ? 'Filme' : 'Film'
+    case 'book':
+      return plural ? 'Seiten' : 'Seite'
+    case 'manga':
+      return plural ? 'Kapitel' : 'Kapitel'
+    default:
+      return plural ? 'Folgen' : 'Folge'
+  }
 }

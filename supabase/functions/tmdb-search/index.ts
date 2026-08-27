@@ -46,7 +46,31 @@ Deno.serve(async (req: Request) => {
 
     if (mode === 'detail') {
       if (type !== 'tv' && type !== 'movie') return json({ error: 'bad type' }, 400)
-      const data = await tmdb(`/${type}/${encodeURIComponent(String(id))}`)
+      const append = type === 'movie' ? '?append_to_response=credits' : ''
+      const data = await tmdb(`/${type}/${encodeURIComponent(String(id))}${append}`)
+      return json(data)
+    }
+
+    // Streaming availability for a region (default DE).
+    if (mode === 'providers') {
+      if (type !== 'tv' && type !== 'movie') return json({ error: 'bad type' }, 400)
+      const data = await tmdb(`/${type}/${encodeURIComponent(String(id))}/watch/providers`)
+      return json(data)
+    }
+
+    // Similar / recommended titles.
+    if (mode === 'recommendations') {
+      if (type !== 'tv' && type !== 'movie') return json({ error: 'bad type' }, 400)
+      const [rec, sim] = await Promise.all([
+        tmdb(`/${type}/${encodeURIComponent(String(id))}/recommendations`),
+        tmdb(`/${type}/${encodeURIComponent(String(id))}/similar`),
+      ])
+      return json({ recommendations: rec, similar: sim })
+    }
+
+    // Trending this week (all media).
+    if (mode === 'trending') {
+      const data = await tmdb('/trending/all/week')
       return json(data)
     }
 

@@ -1,6 +1,6 @@
 import { db, getMeta, setMeta } from './db'
 import { hasSupabaseConfig, supabase } from './supabase'
-import type { Item, ProgressEvent } from './types'
+import type { EpisodeNote, Item, ProgressEvent } from './types'
 
 let timer: ReturnType<typeof setTimeout> | null = null
 let running = false
@@ -170,10 +170,13 @@ function isTransportError(e: { message?: string; code?: string }): boolean {
 async function pullDeltas(): Promise<void> {
   await pullTable<Item>('items', 'updated_at', (rows) => db.items.bulkPut(rows))
   await pullTable<ProgressEvent>('events', 'created_at', (rows) => db.events.bulkPut(rows))
+  await pullTable<EpisodeNote>('episode_notes', 'updated_at', (rows) =>
+    db.episodeNotes.bulkPut(rows),
+  )
 }
 
 async function pullTable<T>(
-  table: 'items' | 'events',
+  table: 'items' | 'events' | 'episode_notes',
   cursorCol: 'updated_at' | 'created_at',
   apply: (rows: T[]) => Promise<unknown>,
 ): Promise<void> {
@@ -207,6 +210,7 @@ async function pullTable<T>(
 export async function resetSyncCache(): Promise<void> {
   await db.items.clear()
   await db.events.clear()
+  await db.episodeNotes.clear()
   await db.outbox.clear()
   await db.meta.where('key').startsWith('sync:').delete()
   await refreshPending()

@@ -1,10 +1,12 @@
 import { db } from './db'
 import { isComplete, stepSize } from './progress'
 import type {
+  EpisodeNote,
   Item,
   ItemMetadata,
   ItemStatus,
   MediaKind,
+  OutboxOp,
   ProgressEvent,
   SearchResult,
 } from './types'
@@ -20,7 +22,7 @@ function now(): string {
 }
 
 async function enqueue(
-  table: 'items' | 'events',
+  table: OutboxOp['table'],
   op: 'insert' | 'update',
   row_id: string,
   payload: Record<string, unknown>,
@@ -228,6 +230,53 @@ export async function setMetadata(
   patch: Partial<ItemMetadata>,
 ): Promise<Item> {
   return patchItem(item, { metadata: { ...item.metadata, ...patch } })
+}
+
+export async function setEpisodeNote(
+  item: Item,
+  season: number,
+  episode: number,
+  patch: { note?: string | null; rating?: number | null },
+): Promise<void> {
+  const existing = await db.episodeNotes
+    .where('item_id')
+    .equals(item.id)
+    .and((n) => n.season === season && n.episode === episode)
+    .first()
+
+  const ts = now()
+  const row: EpisodeNote = existing
+    ? { ...existing, ...patch, updated_at: ts }
+    : {
+        id: uuid(),
+        user_id: item.user_id,
+        item_id: item.id,
+        season,
+        episode,
+        note: patch.note ?? null,
+        rating: patch.rating ?? null,
+        updated_at: ts,
+        created_at: ts,
+      }
+  await db.episodeNotes.put(row)
+  await enqueue(
+    'episode_notes',
+    existing ? 'update' : 'insert',
+    row.id,
+    existing ? { ...patch, updated_at: ts } : (row as unknown as Record<string, unknown>),
+  )
+}
+
+/** Start a fresh run: keep the history, reset progress, bump the rewatch count. */
+export async function startRewatch(item: Item): Promise<Item> {
+  const updated = await patchItem(item, {
+    current_position: 0,
+    status: 'watching',
+    finished_at: null,
+    metadata: { ...item.metadata, rewatches: (item.metadata.rewatches ?? 0) + 1 },
+  })
+  await logEvent(updated, 'rewatch', item.current_position, 0, null)
+  return updated
 }
 
 export async function softDelete(item: Item): Promise<void> {

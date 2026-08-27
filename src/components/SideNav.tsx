@@ -6,6 +6,7 @@ import { useUnseenAired } from '../hooks/useAiring'
 const links = [
   { to: '/', label: 'Weiterschauen', icon: '▶' },
   { to: '/upcoming', label: 'Diese Woche', icon: '📅' },
+  { to: '/discover', label: 'Entdecken', icon: '✦' },
   { to: '/library', label: 'Bibliothek', icon: '▦' },
   { to: '/stats', label: 'Statistik', icon: '◔' },
   { to: '/profile', label: 'Profil', icon: '☰' },
