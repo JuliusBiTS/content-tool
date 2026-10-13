@@ -70,10 +70,11 @@ const item = (over: Partial<Item> = {}): Item =>
   }) as Item
 
 describe('isFresh', () => {
-  it('airing shows go stale after 4h', () => {
-    const c = cache({ fetchedAt: new Date(NOW - AIRING_FRESH_MS - 1000).toISOString() })
-    expect(isFresh(c, true, NOW)).toBe(false)
+  it('airing shows are trusted for a day, then re-checked', () => {
+    const stale = cache({ fetchedAt: new Date(NOW - AIRING_FRESH_MS - 1000).toISOString() })
+    expect(isFresh(stale, true, NOW)).toBe(false)
     expect(isFresh(cache({ fetchedAt: new Date(NOW - 3600e3).toISOString() }), true, NOW)).toBe(true)
+    expect(isFresh(cache({ fetchedAt: new Date(NOW - 20 * 3600e3).toISOString() }), true, NOW)).toBe(true)
   })
 
   it('ended shows stay fresh for two weeks', () => {

@@ -170,10 +170,12 @@ describe('planReleaseItemUpdate', () => {
 })
 
 describe('freshness + status mapping', () => {
-  it('live media go stale after 4h, finished ones after a week', () => {
-    const old = new Date(NOW - 5 * 3600e3).toISOString()
-    expect(isReleaseFresh(cache({ fetchedAt: old }), NOW)).toBe(false)
-    expect(isReleaseFresh(cache({ fetchedAt: old, status: 'finished' }), NOW)).toBe(true)
+  it('live media are re-checked daily, finished ones every two weeks', () => {
+    const twelveHours = new Date(NOW - 12 * 3600e3).toISOString()
+    const thirtyHours = new Date(NOW - 30 * 3600e3).toISOString()
+    expect(isReleaseFresh(cache({ fetchedAt: twelveHours }), NOW)).toBe(true)
+    expect(isReleaseFresh(cache({ fetchedAt: thirtyHours }), NOW)).toBe(false)
+    expect(isReleaseFresh(cache({ fetchedAt: thirtyHours, status: 'finished' }), NOW)).toBe(true)
   })
   it('normalises provider statuses', () => {
     expect(normalizeAniListStatus('RELEASING')).toBe('releasing')

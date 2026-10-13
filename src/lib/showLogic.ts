@@ -1,8 +1,12 @@
 import { totalEpisodes } from './progress'
 import type { EpisodeMeta, Item, SeasonMeta, ShowCache } from './types'
 
-/** Airing shows are re-checked often so weekly releases stay accurate. */
-export const AIRING_FRESH_MS = 4 * 60 * 60 * 1000
+/**
+ * How long cached air dates are trusted before an automatic re-check: once a
+ * day is plenty (schedules are known well ahead); the manual refresh button
+ * always re-checks right away.
+ */
+export const AIRING_FRESH_MS = 24 * 60 * 60 * 1000
 /** Ended shows barely change. */
 export const ENDED_FRESH_MS = 14 * 24 * 60 * 60 * 1000
 /** A finished show whose next episode aired this recently counts as "new". */

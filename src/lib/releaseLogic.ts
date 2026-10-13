@@ -1,8 +1,8 @@
 import type { Item, ReleaseCache, ReleaseEntry } from './types'
 
-/** Airing anime / ongoing manga are re-checked often, finished ones rarely. */
-export const RELEASE_LIVE_FRESH_MS = 4 * 60 * 60 * 1000
-export const RELEASE_ENDED_FRESH_MS = 7 * 24 * 60 * 60 * 1000
+/** Daily automatic re-check; the manual refresh button forces it any time. */
+export const RELEASE_LIVE_FRESH_MS = 24 * 60 * 60 * 1000
+export const RELEASE_ENDED_FRESH_MS = 14 * 24 * 60 * 60 * 1000
 /** How long to remember that a manga has no MangaDex match. */
 export const NO_MATCH_RETRY_MS = 30 * 24 * 60 * 60 * 1000
 /** A chapter this far behind the newest one is a re-upload, not a release. */

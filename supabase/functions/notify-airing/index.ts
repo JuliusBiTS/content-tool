@@ -20,7 +20,10 @@ const TZ = 'Europe/Berlin'
 const QUIET_FROM = 22
 const QUIET_TO = 7
 const DEFAULT_LOOKBACK_MS = 26 * 3600e3
-const MAX_LOOKBACK_MS = 72 * 3600e3
+/** Wide enough that a weekly cron never loses anything. */
+const MAX_LOOKBACK_MS = 9 * 24 * 3600e3
+/** More hits than this in one run collapse into a single summary push. */
+const DIGEST_ABOVE = 4
 /** TMDB only knows the date; treat an episode as available at noon UTC that day. */
 const TMDB_AVAILABLE_AT = 'T12:00:00Z'
 const CHAPTER_NOISE_GAP = 15
@@ -103,6 +106,23 @@ export function sinceFor(lastNotified: (string | null)[], now: number): number {
     ? now - DEFAULT_LOOKBACK_MS
     : Math.min(...times)
   return Math.max(oldest, now - MAX_LOOKBACK_MS)
+}
+
+/** One push per release, or a single summary after a long gap. */
+export function buildPushes(hits: Hit[]): { title: string; body: string; tag: string }[] {
+  const sorted = [...hits].sort((a, b) => a.at - b.at)
+  if (sorted.length <= DIGEST_ABOVE) {
+    return sorted.map((h) => ({ title: h.title, body: h.body, tag: h.tag }))
+  }
+  const titles = [...new Set([...sorted].reverse().map((h) => h.title))]
+  const more = titles.length > 3 ? ` und ${titles.length - 3} weitere` : ''
+  return [
+    {
+      title: 'MediaLog',
+      body: `${sorted.length} Neuerscheinungen: ${titles.slice(0, 3).join(', ')}${more}`,
+      tag: 'digest',
+    },
+  ]
 }
 
 async function tmdb(path: string): Promise<any> {
@@ -302,12 +322,12 @@ export async function handle(req: Request): Promise<Response> {
   const nowIso = new Date(now).toISOString()
   let sent = 0
   for (const [uid, list] of subsByUser) {
-    for (const hit of (hitsByUser.get(uid) ?? []).sort((a, b) => a.at - b.at)) {
+    for (const push of buildPushes(hitsByUser.get(uid) ?? [])) {
       for (const s of list as any[]) {
         try {
           await webpush.sendNotification(
             { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
-            JSON.stringify({ title: hit.title, body: hit.body, tag: hit.tag, url: '/upcoming' }),
+            JSON.stringify({ ...push, url: '/upcoming' }),
           )
           sent++
         } catch (e) {

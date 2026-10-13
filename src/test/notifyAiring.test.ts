@@ -10,6 +10,7 @@ let helpers: {
   sinceFor: (l: (string | null)[], now: number) => number
   isQuietHour: (h: number) => boolean
   berlinHour: (now: number) => number
+  buildPushes: (h: { title: string; body: string; tag: string; at: number }[]) => { title: string; body: string; tag: string }[]
 }
 
 const ENV: Record<string, string> = {
@@ -119,13 +120,25 @@ describe('notify-airing helpers', () => {
     expect(helpers.absoluteIndex([], 1, 1)).toBeNull()
   })
 
-  it('cursor: default lookback, oldest device wins, capped at 72h', () => {
+  it('cursor: default lookback, oldest device wins, capped at 9 days', () => {
     const now = Date.parse(NOON)
     expect(helpers.sinceFor([null], now)).toBe(now - 26 * 3600e3)
     const a = new Date(now - 5 * 3600e3).toISOString()
     const b = new Date(now - 2 * 3600e3).toISOString()
     expect(helpers.sinceFor([a, b], now)).toBe(now - 5 * 3600e3)
-    expect(helpers.sinceFor([new Date(now - 10 * 864e5).toISOString()], now)).toBe(now - 72 * 3600e3)
+    // a weekly cron (7 days between runs) must not lose anything
+    expect(helpers.sinceFor([new Date(now - 7 * 864e5).toISOString()], now)).toBe(now - 7 * 864e5)
+    expect(helpers.sinceFor([new Date(now - 30 * 864e5).toISOString()], now)).toBe(now - 9 * 864e5)
+  })
+
+  it('buildPushes: individual pushes up to four, then one summary', () => {
+    const hit = (n: number) => ({ title: `Show ${n}`, body: `Folge ${n}`, tag: `t${n}`, at: n })
+    expect(helpers.buildPushes([hit(1), hit(2)])).toHaveLength(2)
+    expect(helpers.buildPushes([hit(1), hit(2), hit(3), hit(4)])).toHaveLength(4)
+    const digest = helpers.buildPushes([hit(1), hit(2), hit(3), hit(4), hit(5), hit(6)])
+    expect(digest).toHaveLength(1)
+    expect(digest[0].tag).toBe('digest')
+    expect(digest[0].body).toBe('6 Neuerscheinungen: Show 6, Show 5, Show 4 und 3 weitere')
   })
 
   it('chapterEntries merges languages and drops old re-uploads', () => {
@@ -233,6 +246,25 @@ describe('notify-airing handler', () => {
     vi.setSystemTime(new Date('2026-10-13T13:00:00Z'))
     stubNetwork({ anilist: sched.filter((s) => s.airingAt * 1000 > Date.parse(cursor)) })
     expect((await (await call()).json()).sent).toBe(0)
+  })
+
+  it('days the cron missed are not lost — and a pile-up becomes one summary push', async () => {
+    // nothing ran for six days: the cursor is six days old, releases from days 1–5 are due
+    fake.subs[0].last_notified_at = new Date(Date.parse(NOON) - 6 * 864e5).toISOString()
+    const sec = Math.floor(Date.parse(NOON) / 1000)
+    const ids = [101, 102, 103, 104, 105]
+    ids.forEach((id) =>
+      fake.items.push(
+        item({ id: `a${id}`, title: `Anime ${id}`, kind: 'anime', source: 'anilist', source_id: String(id), current_position: 4, metadata: {} }),
+      ),
+    )
+    stubNetwork({
+      anilist: ids.map((id, n) => ({ mediaId: id, episode: 5, airingAt: sec - (n + 1) * 86400 })),
+    })
+    const body = await (await call()).json()
+    expect(body.sent).toBe(1) // five releases → one push
+    expect(push.sent[0].payload.tag).toBe('digest')
+    expect(push.sent[0].payload.body).toContain('5 Neuerscheinungen')
   })
 
   it('removes subscriptions the push service reports as gone', async () => {

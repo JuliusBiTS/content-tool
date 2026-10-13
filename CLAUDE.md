@@ -32,7 +32,7 @@ npm run icons    # regenerate PWA icons
 ## Keeping data current
 
 - `src/lib/refresh.ts` `refreshAll()` = data sync + air-date refresh. Auto-triggered by `useAutoRefresh` (start, foreground, online, 30 min, followed-set change); `{force:true}` from the buttons.
-- Airing shows are re-checked every 4 h, ended ones every 14 days (probe only). Refetch is incremental per season.
+- Airing shows (TMDB, AniList, MangaDex) are re-checked automatically once a day, ended ones every 14 days (probe only); the manual buttons force it. Refetch is incremental per season.
 - The calendar (`airingWindow`) reads the cache only — never fetch from render paths.
 - Background jobs must patch via `repo.patchItemFresh` (re-reads the row) so they can't revert a user action.
 - Live hooks must key on something that changes on refresh (`fetchedAt`), not row counts.
@@ -41,7 +41,7 @@ npm run icons    # regenerate PWA icons
 
 - Supabase migrations in `supabase/migrations/`. Every table: `user_id` + RLS `auth.uid() = user_id`.
 - TMDB proxied through the `tmdb-search` edge function (modes: search / detail / show / season / providers / recommendations / trending). Token is a Supabase secret.
-- `notify-airing` edge function = cron target (hourly) for web push: TMDB series, AniList anime, MangaDex manga. Per-user cursor in `push_subscriptions.last_notified_at` (notify "since last run", no duplicates); quiet 22–07 Europe/Berlin. Fully covered by `src/test/notifyAiring.test.ts` using fakes in `src/test/stubs` (vitest aliases the Deno-style imports).
+- `notify-airing` edge function = cron target (daily is enough) for web push: TMDB series, AniList anime, MangaDex manga. Per-user cursor in `push_subscriptions.last_notified_at` (notify "since last run", no duplicates); quiet 22–07 Europe/Berlin. Fully covered by `src/test/notifyAiring.test.ts` using fakes in `src/test/stubs` (vitest aliases the Deno-style imports).
 - Imports: `src/lib/import/` — Letterboxd (ratings) and Netflix (viewing history → items + dated progress events via `repo.importProgressHistory`). Shared helpers: `csv.ts`, `text.ts` (`norm`), `pool.ts`.
 - "Weiterschauen" order = `src/lib/ordering.ts` (fresh release first, then the user's own last progress — not `updated_at`).
 - App runs in **local-only mode** when `VITE_SUPABASE_*` is unresolvable, or with `localStorage['dev:localOnly']='1'` in dev. Keep that path working.
