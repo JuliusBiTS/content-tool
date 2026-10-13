@@ -26,6 +26,7 @@ npm run icons    # regenerate PWA icons
 ## Caches (Dexie, never synced)
 
 - `shows` — per-show TMDB data (status, next air, backdrop, logo, season sizes, episodes). `src/lib/shows.ts`; pure rules (freshness, which seasons to refetch, item patching, reactivation) in `src/lib/showLogic.ts` (unit-tested).
+- `releases` — anime (AniList airing schedule, one batched call) and manga (MangaDex chapters, matched via the AniList id). `src/lib/releases.ts`; pure rules in `src/lib/releaseLogic.ts`. Calendar rows come from `calendarWindow()` in `airing.ts` (TMDB + releases merged).
 - `palettes` — poster URL → dominant hex.
 
 ## Keeping data current
@@ -40,5 +41,7 @@ npm run icons    # regenerate PWA icons
 
 - Supabase migrations in `supabase/migrations/`. Every table: `user_id` + RLS `auth.uid() = user_id`.
 - TMDB proxied through the `tmdb-search` edge function (modes: search / detail / show / season / providers / recommendations / trending). Token is a Supabase secret.
-- `notify-airing` edge function = daily cron target for "new episode" web push.
+- `notify-airing` edge function = cron target (hourly) for web push: TMDB series, AniList anime, MangaDex manga. Per-user cursor in `push_subscriptions.last_notified_at` (notify "since last run", no duplicates); quiet 22–07 Europe/Berlin. Fully covered by `src/test/notifyAiring.test.ts` using fakes in `src/test/stubs` (vitest aliases the Deno-style imports).
+- Imports: `src/lib/import/` — Letterboxd (ratings) and Netflix (viewing history → items + dated progress events via `repo.importProgressHistory`). Shared helpers: `csv.ts`, `text.ts` (`norm`), `pool.ts`.
+- "Weiterschauen" order = `src/lib/ordering.ts` (fresh release first, then the user's own last progress — not `updated_at`).
 - App runs in **local-only mode** when `VITE_SUPABASE_*` is unresolvable, or with `localStorage['dev:localOnly']='1'` in dev. Keep that path working.

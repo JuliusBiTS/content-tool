@@ -38,7 +38,37 @@ export interface ItemMetadata {
   externalRating?: number
   /** completed rewatches / rereads */
   rewatches?: number
-  /** manga: chapters per volume boundary is ignored; unit is chapters */
+  /** manga: MangaDex id, found once via the AniList link ('' = looked, no match) */
+  mangadexId?: string
+  /** manga: highest chapter released so far (MangaDex) */
+  latestChapter?: number
+}
+
+/** One airing anime episode or released manga chapter. */
+export interface ReleaseEntry {
+  number: number
+  /** ISO datetime */
+  at: string
+}
+
+/**
+ * Release data for anime (AniList airing schedule) and manga (MangaDex
+ * chapters), cached per medium. Never synced.
+ */
+export interface ReleaseCache {
+  /** "anime:<anilistId>" | "manga:<anilistId>" */
+  key: string
+  kind: 'anime' | 'manga'
+  /** releasing | finished | upcoming | hiatus | cancelled */
+  status: string | null
+  entries: ReleaseEntry[]
+  /** newest aired episode / released chapter */
+  latest: number | null
+  /** final episode / chapter count, once known */
+  total: number | null
+  /** manga: MangaDex uuid; '' when no match was found */
+  externalId?: string
+  fetchedAt: string
 }
 
 /** One episode, cached from TMDB (never synced). */

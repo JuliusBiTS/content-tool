@@ -9,7 +9,7 @@ import { useNextEpisode, usePosterAccent } from '../hooks/useShow'
 import { useToast } from './Toast'
 import type { Item } from '../lib/types'
 
-export function ContinueCard({ item }: { item: Item }) {
+export function ContinueCard({ item, fresh = false }: { item: Item; fresh?: boolean }) {
   const navigate = useNavigate()
   const toast = useToast()
   const next = useNextEpisode(item)
@@ -59,7 +59,17 @@ export function ContinueCard({ item }: { item: Item }) {
         </div>
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <div className="truncate font-semibold leading-tight">{item.title}</div>
+          <div className="flex items-center gap-2 leading-tight">
+            <span className="truncate font-semibold">{item.title}</span>
+            {fresh && (
+              <span
+                className="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold text-white"
+                style={{ background: 'var(--scene-accent)' }}
+              >
+                Neu
+              </span>
+            )}
+          </div>
           <div
             key={popKey}
             className={'mt-0.5 truncate text-sm text-muted ' + (popKey ? 'inline-block animate-pop' : '')}

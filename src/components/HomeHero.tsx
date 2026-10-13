@@ -9,7 +9,7 @@ import { positionLabel, progressFraction, nextActionLabel } from '../lib/progres
 import { useNextEpisode, usePosterAccent } from '../hooks/useShow'
 import type { Item } from '../lib/types'
 
-export function HomeHero({ item }: { item: Item }) {
+export function HomeHero({ item, fresh = false }: { item: Item; fresh?: boolean }) {
   const navigate = useNavigate()
   const toast = useToast()
   const next = useNextEpisode(item)
@@ -49,8 +49,16 @@ export function HomeHero({ item }: { item: Item }) {
       className="cursor-pointer overflow-hidden rounded-card px-4 pb-4 pt-10"
     >
       <div onClick={() => navigate(`/item/${item.id}`, { viewTransition: true })}>
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-white/70">
+        <span className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-white/70">
           Weiterschauen
+          {fresh && (
+            <span
+              className="rounded-full px-2 py-0.5 text-[10px] tracking-normal text-white"
+              style={{ background: 'var(--scene-accent)' }}
+            >
+              Neu
+            </span>
+          )}
         </span>
         <div className="mt-1">
           <TitleTreatment logo={item.metadata.logo_url} title={item.title} maxH="3.5rem" />

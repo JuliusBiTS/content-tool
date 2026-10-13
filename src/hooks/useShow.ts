@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../lib/db'
 import { getShow, nextEpisode, tvId, type NextEpisode } from '../lib/shows'
+import { refreshReleasesFor } from '../lib/releases'
+import { releaseKey } from '../lib/releaseLogic'
 import { posterAccent } from '../lib/palette'
-import type { Item, ShowCache } from '../lib/types'
+import type { Item, ReleaseCache, ShowCache } from '../lib/types'
 
 /** Cached TMDB show data for a series; triggers a background fetch/refresh. */
 export function useShow(item: Item | undefined): ShowCache | null {
@@ -16,6 +18,19 @@ export function useShow(item: Item | undefined): ShowCache | null {
   useEffect(() => {
     if (item && id != null) void getShow(item)
   }, [id, item])
+
+  return cached ?? null
+}
+
+/** Airing data for an AniList anime / manga; refreshed in the background if stale. */
+export function useRelease(item: Item | undefined): ReleaseCache | null {
+  const key = item ? releaseKey(item) : null
+  const cached = useLiveQuery(() => (key ? db.releases.get(key) : undefined), [key])
+
+  useEffect(() => {
+    // only when the medium changes — refreshReleasesFor checks freshness itself
+    if (item && key) void refreshReleasesFor(item)
+  }, [key])
 
   return cached ?? null
 }

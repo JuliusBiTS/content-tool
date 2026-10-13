@@ -7,7 +7,7 @@ import { StarRating } from '../components/StarRating'
 import { QuickPositionSheet } from '../components/QuickPositionSheet'
 import { useToast } from '../components/Toast'
 import { useItem, useItemEvents } from '../hooks/useData'
-import { useShow, useNextEpisode, usePosterAccent } from '../hooks/useShow'
+import { useShow, useNextEpisode, usePosterAccent, useRelease } from '../hooks/useShow'
 import {
   bumpProgress,
   setMetadata,
@@ -21,6 +21,8 @@ import { bumpFx, celebrate, spoilerGuard } from '../lib/fx'
 import { getWatchProviders, type Provider } from '../lib/tmdb'
 import { nextActionLabel, positionLabel, progressFraction, realSeasons } from '../lib/progress'
 import { KIND_LABEL } from '../lib/kinds'
+import { nextRelease } from '../lib/releaseLogic'
+import { recapEpisodes, hasTime } from '../lib/showLogic'
 import type { ItemStatus } from '../lib/types'
 
 const STATUS_LABELS: Record<ItemStatus, string> = {
@@ -49,6 +51,7 @@ export function ItemDetail() {
   const events = useItemEvents(id)
   const show = useShow(item)
   const next = useNextEpisode(item)
+  const release = useRelease(item)
   const accent = usePosterAccent(item)
   const [quickOpen, setQuickOpen] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -79,6 +82,15 @@ export function ItemDetail() {
 
   const frac = progressFraction(item)
   const isEpisodic = item.kind === 'series' || item.kind === 'anime'
+
+  const nextRel = release ? nextRelease(item, release) : null
+  const recap =
+    show && item.status !== 'planned' && item.current_position > 0
+      ? recapEpisodes(item, show.episodes, 2)
+      : []
+  // how long since the user last actually watched something (drives auto-expand)
+  const lastProgress = (events ?? []).find((e) => e.kind === 'progress' || e.kind === 'rewatch')
+  const staleDays = lastProgress ? (Date.now() - Date.parse(lastProgress.occurred_at)) / 864e5 : 0
   const canToggleNumbering = isEpisodic && seasons.length > 0
 
   const seasonBlocks = seasons.reduce<{ season: (typeof seasons)[number]; start: number }[]>(
@@ -253,6 +265,10 @@ export function ItemDetail() {
             </div>
           )}
 
+          {nextRel && <ReleaseCard item={item} rel={nextRel} />}
+
+          {recap.length > 0 && <Recap episodes={recap} stale={staleDays >= 14} />}
+
           {item.metadata.overview && (
             <p className="text-sm leading-relaxed text-muted">{item.metadata.overview}</p>
           )}
@@ -351,6 +367,79 @@ export function ItemDetail() {
       </div>
 
       <QuickPositionSheet item={item} open={quickOpen} onClose={() => setQuickOpen(false)} />
+    </div>
+  )
+}
+
+/** Anime episode / manga chapter status from AniList / MangaDex. */
+function ReleaseCard({
+  item,
+  rel,
+}: {
+  item: { kind: string }
+  rel: NonNullable<ReturnType<typeof nextRelease>>
+}) {
+  const manga = item.kind === 'manga'
+  const unit = manga ? 'Kapitel' : 'Folge'
+  const when = rel.at
+    ? new Date(rel.at).toLocaleString('de-DE', {
+        weekday: 'short',
+        day: '2-digit',
+        month: '2-digit',
+        ...(hasTime(rel.at) ? { hour: '2-digit', minute: '2-digit' } : {}),
+      })
+    : null
+
+  return (
+    <div className="mb-6 rounded-card border border-border bg-surface p-3">
+      <span className="text-xs uppercase tracking-wide text-muted">
+        {rel.upcoming ? 'Als Nächstes' : manga ? 'Zum Weiterlesen' : 'Jetzt verfügbar'}
+      </span>
+      <div className="mt-0.5 font-medium">
+        {unit} {rel.number}
+        {rel.upcoming && when ? ` · ${when}` : ''}
+        {rel.upcoming && relDays(rel.at) ? ` (${relDays(rel.at)})` : ''}
+      </div>
+      {rel.behind > 0 && (
+        <div className="text-xs text-muted">
+          Du bist {rel.behind} {manga ? 'Kapitel' : rel.behind === 1 ? 'Folge' : 'Folgen'} hinten.
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** The last couple of episodes the user watched — a memory jog after a break. */
+function Recap({
+  episodes,
+  stale,
+}: {
+  episodes: { season: number; number: number; name: string; overview: string }[]
+  stale: boolean
+}) {
+  const [open, setOpen] = useState(stale)
+  return (
+    <div className="mb-6 rounded-card border border-border bg-surface">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between px-3 py-2.5 text-left"
+      >
+        <span className="text-sm font-medium">Was bisher geschah</span>
+        <span className="text-xs text-muted">{open ? '▴' : '▾'}</span>
+      </button>
+      {open && (
+        <div className="space-y-3 border-t border-border px-3 py-3">
+          {episodes.map((e) => (
+            <div key={`${e.season}-${e.number}`}>
+              <div className="text-xs font-semibold text-muted">
+                S{e.season} E{e.number}
+                {e.name ? ` · ${e.name}` : ''}
+              </div>
+              <p className="mt-0.5 text-sm leading-relaxed text-muted">{e.overview}</p>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

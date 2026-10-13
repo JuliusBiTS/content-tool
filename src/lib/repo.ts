@@ -10,7 +10,7 @@ import type {
   ProgressEvent,
   SearchResult,
 } from './types'
-import { resolveMeta } from './search'
+import { resolveMeta, type ResolvedMeta } from './search'
 import { queueSync } from './sync'
 
 function uuid(): string {
@@ -35,9 +35,15 @@ async function enqueue(
 
 export async function addFromSearch(
   result: SearchResult,
-  opts: { userId: string; status: ItemStatus; kindOverride?: MediaKind },
+  opts: {
+    userId: string
+    status: ItemStatus
+    kindOverride?: MediaKind
+    /** already-fetched details, to skip a second round-trip (bulk imports) */
+    resolved?: ResolvedMeta
+  },
 ): Promise<Item> {
-  const resolved = await resolveMeta(result)
+  const resolved = opts.resolved ?? (await resolveMeta(result))
   const ts = now()
   const kind = opts.kindOverride ?? result.kind
   const item: Item = {
@@ -155,6 +161,8 @@ async function logEvent(
   from: number | null,
   to: number | null,
   note: string | null,
+  /** when it really happened (imports); created_at stays 'now' so sync still sees it */
+  at?: string,
 ): Promise<void> {
   const ev: ProgressEvent = {
     id: uuid(),
@@ -164,7 +172,7 @@ async function logEvent(
     from_position: from,
     to_position: to,
     note,
-    occurred_at: now(),
+    occurred_at: at ?? now(),
     created_at: now(),
   }
   await db.events.add(ev)
@@ -295,6 +303,34 @@ export async function setEpisodeNote(
     row.id,
     existing ? { ...patch, updated_at: ts } : (row as unknown as Record<string, unknown>),
   )
+}
+
+/**
+ * Apply a watch history from an import: one progress event per step at its
+ * real date (so heatmap / watch-time stats are right), and the item ends up at
+ * the final position. Never moves an item backwards.
+ */
+export async function importProgressHistory(
+  item: Item,
+  steps: { to: number; at: string }[],
+  status: ItemStatus,
+): Promise<Item> {
+  const current = (await db.items.get(item.id)) ?? item
+  const ordered = [...steps].sort((a, b) => a.at.localeCompare(b.at))
+  let from = current.current_position
+  for (const s of ordered) {
+    if (s.to <= from) continue
+    await logEvent(current, 'progress', from, s.to, null, s.at)
+    from = s.to
+  }
+  if (from === current.current_position && status === current.status) return current
+
+  const first = ordered[0]?.at ?? null
+  const last = ordered[ordered.length - 1]?.at ?? null
+  const patch: Partial<Item> = { current_position: from, status }
+  if (first && (!current.started_at || first < current.started_at)) patch.started_at = first
+  patch.finished_at = status === 'done' ? (last ?? now()) : null
+  return patchItem(current, patch)
 }
 
 /** Start a fresh run: keep the history, reset progress, bump the rewatch count. */

@@ -11,13 +11,17 @@ import type { AiringEntry } from '../lib/shows'
  */
 function useAiringTick(): string | undefined {
   return useLiveQuery(async () => {
-    const [shows, items, seen] = await Promise.all([
+    const [shows, releases, items, seen] = await Promise.all([
       db.shows.toArray(),
-      db.items.where('kind').anyOf('series', 'anime').toArray(),
+      db.releases.toArray(),
+      db.items.where('kind').anyOf('series', 'anime', 'manga').toArray(),
       db.meta.get('airing:seenKeys'),
     ])
     const seenSig = `${seen?.value.length ?? 0}:${seen?.value.slice(-40) ?? ''}`
-    const s = shows.map((x) => `${x.tmdbId}@${x.fetchedAt}`).join('|') + seenSig
+    const s =
+      shows.map((x) => `${x.tmdbId}@${x.fetchedAt}`).join('|') +
+      releases.map((x) => `${x.key}@${x.fetchedAt}`).join('|') +
+      seenSig
     const i = items
       .map(
         (x) =>

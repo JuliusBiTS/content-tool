@@ -6,6 +6,7 @@ import {
   mergeEpisodes,
   planItemUpdate,
   planSeasonFetch,
+  recapEpisodes,
   seasonsDiffer,
 } from './showLogic'
 import type { EpisodeMeta, Item, SeasonMeta, ShowCache } from './types'
@@ -227,5 +228,28 @@ describe('planItemUpdate', () => {
     const aired = [...eps(9, 9), ep(3, 1, daysAgo(1))]
     const { patch } = planItemUpdate(watching, { ...base, seasons: seasons(9, 9, 1), episodes: aired }, NOW)
     expect(patch.status).toBeUndefined()
+  })
+})
+
+describe('recapEpisodes', () => {
+  const withSummary = (season: number, n: number, overview = 'Zusammenfassung') => ({ ...ep(season, n), overview })
+  const meta = { seasons: seasons(3, 3) }
+
+  it('returns the last two watched episodes, oldest first, across a season border', () => {
+    const all = [...eps(3, 3)].map((e) => ({ ...e, overview: 'x' + e.season + e.number }))
+    const r = recapEpisodes({ current_position: 4, metadata: meta }, all, 2)
+    expect(r.map((e) => [e.season, e.number])).toEqual([[1, 3], [2, 1]])
+  })
+
+  it('never reaches past what the user has watched (no spoilers)', () => {
+    const all = [withSummary(1, 1), withSummary(1, 2), withSummary(1, 3)]
+    const r = recapEpisodes({ current_position: 2, metadata: meta }, all, 3)
+    expect(r.map((e) => e.number)).toEqual([1, 2])
+  })
+
+  it('skips episodes without a summary and is empty at the start', () => {
+    const all = [withSummary(1, 1, ''), withSummary(1, 2), withSummary(1, 3, '  ')]
+    expect(recapEpisodes({ current_position: 3, metadata: meta }, all, 2).map((e) => e.number)).toEqual([2])
+    expect(recapEpisodes({ current_position: 0, metadata: meta }, all, 2)).toEqual([])
   })
 })

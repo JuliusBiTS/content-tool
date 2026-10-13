@@ -1,6 +1,6 @@
 import { getAniListDetail, searchAnime, searchManga } from './anilist'
 import { getBookPages, searchBooks } from './googlebooks'
-import { getTmdbDetail, searchTmdb } from './tmdb'
+import { getTmdbDetail, searchTmdb, type MediaDetail } from './tmdb'
 import type { ItemMetadata, MediaKind, SearchResult } from './types'
 
 export type SearchScope = 'all' | MediaKind
@@ -36,23 +36,26 @@ export interface ResolvedMeta {
   metadata: ItemMetadata
 }
 
+export function tmdbToResolved(d: MediaDetail): ResolvedMeta {
+  return {
+    total_units: d.totalUnits,
+    metadata: {
+      seasons: d.seasons,
+      overview: d.overview ?? undefined,
+      year: d.year ?? undefined,
+      runtimeMinutes: d.runtimeMinutes ?? undefined,
+      genres: d.genres,
+      creators: d.creators,
+      externalRating: d.externalRating ?? undefined,
+    },
+  }
+}
+
 /** Fetch full details (seasons/pages/chapters/runtime/genres) for a chosen result. */
 export async function resolveMeta(result: SearchResult): Promise<ResolvedMeta> {
   try {
     if (result.source === 'tmdb') {
-      const d = await getTmdbDetail(result.source_id)
-      return {
-        total_units: d.totalUnits,
-        metadata: {
-          seasons: d.seasons,
-          overview: d.overview ?? undefined,
-          year: d.year ?? undefined,
-          runtimeMinutes: d.runtimeMinutes ?? undefined,
-          genres: d.genres,
-          creators: d.creators,
-          externalRating: d.externalRating ?? undefined,
-        },
-      }
+      return tmdbToResolved(await getTmdbDetail(result.source_id))
     }
     if (result.source === 'anilist') {
       const d = await getAniListDetail(result.source_id)

@@ -8,6 +8,17 @@ export const ENDED_FRESH_MS = 14 * 24 * 60 * 60 * 1000
 /** A finished show whose next episode aired this recently counts as "new". */
 export const REACTIVATE_WINDOW_DAYS = 45
 
+/** TMDB gives a bare date, AniList / MangaDex a full timestamp. */
+export const hasTime = (airDate: string): boolean => airDate.length > 10
+
+/** "YYYY-MM-DD" in the viewer's timezone; bare dates are taken as they are. */
+export function localDayKey(airDate: string): string {
+  if (!hasTime(airDate)) return airDate
+  const d = new Date(airDate)
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}
+
 /** Legacy caches (before `full` existed) always carried episodes. */
 export const hasEpisodes = (c: Pick<ShowCache, 'full' | 'episodes'>): boolean =>
   c.full ?? c.episodes.length > 0
@@ -86,6 +97,25 @@ export function episodeAtAbsolute(
     remaining -= s.episodeCount
   }
   return null
+}
+
+/**
+ * The last few episodes the user has watched, oldest first, with their
+ * summaries — spoiler-safe by construction (nothing past the user's position).
+ */
+export function recapEpisodes(
+  item: Pick<Item, 'current_position' | 'metadata'>,
+  episodes: EpisodeMeta[],
+  count = 2,
+): EpisodeMeta[] {
+  const seasons = item.metadata.seasons ?? []
+  const out: EpisodeMeta[] = []
+  for (let abs = item.current_position; abs > 0 && out.length < count; abs--) {
+    const ep = episodeAtAbsolute(seasons, episodes, abs)
+    if (ep?.overview?.trim()) out.unshift(ep)
+    else if (abs <= item.current_position - count - 2) break // don't dig forever
+  }
+  return out
 }
 
 type ShowFields = Pick<ShowCache, 'backdrop' | 'logo' | 'tagline' | 'episodes'> & {

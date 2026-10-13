@@ -1,5 +1,7 @@
 import { unzipSync, strFromU8 } from 'fflate'
 import { parseCsv } from './csv'
+import { norm } from './text'
+import { mapWithConcurrency } from './pool'
 import { searchTmdb } from '../tmdb'
 import { importFilm } from '../repo'
 import { db } from '../db'
@@ -24,14 +26,6 @@ export interface ImportResult {
   unmatched: string[]
 }
 
-const DIACRITICS = /[̀-ͯ]/g
-const norm = (s: string) =>
-  s
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(DIACRITICS, '')
-    .replace(/[^a-z0-9]+/g, ' ')
-    .trim()
 
 function toRow(r: Record<string, string>): LbFilm {
   const raw = r['Rating']
@@ -97,25 +91,6 @@ async function existingKeys(): Promise<{ titles: Set<string>; tmdb: Set<string> 
     if (it.source === 'tmdb' && it.source_id) tmdb.add(it.source_id)
   }
   return { titles, tmdb }
-}
-
-async function mapWithConcurrency<T, R>(
-  items: T[],
-  limit: number,
-  fn: (item: T, index: number) => Promise<R>,
-  onTick: () => void,
-): Promise<R[]> {
-  const out: R[] = new Array(items.length)
-  let cursor = 0
-  async function worker() {
-    while (cursor < items.length) {
-      const i = cursor++
-      out[i] = await fn(items[i], i)
-      onTick()
-    }
-  }
-  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker))
-  return out
 }
 
 /** Best TMDB movie match for a Letterboxd title/year. */

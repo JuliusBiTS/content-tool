@@ -285,11 +285,14 @@ export function nextEpisode(item: Item, show: ShowCache | null): NextEpisode | n
 
 export interface AiringEntry {
   item: Item
+  /** synthetic for anime / manga (season 1, no still) */
   episode: EpisodeMeta
-  /** absolute episode index, for "already watched?" checks */
+  /** absolute episode / chapter index, for "already watched?" checks */
   absolute: number
+  /** "YYYY-MM-DD" (TMDB) or a full ISO datetime (AniList / MangaDex) */
   airDate: string
   watched: boolean
+  unit: 'episode' | 'chapter'
 }
 
 /**
@@ -323,8 +326,9 @@ export async function airingWindow(
         absolute,
         airDate: ep.airDate,
         watched: item.current_position >= absolute,
+        unit: 'episode',
       })
     }
   }
-  return rows.sort((a, b) => a.airDate.localeCompare(b.airDate))
+  return rows.sort((a, b) => Date.parse(a.airDate) - Date.parse(b.airDate))
 }

@@ -4,6 +4,7 @@ import type {
   Item,
   OutboxOp,
   ProgressEvent,
+  ReleaseCache,
   ShowCache,
 } from './types'
 
@@ -21,6 +22,7 @@ class MediaLogDB extends Dexie {
   outbox!: EntityTable<OutboxOp, 'id'>
   meta!: EntityTable<{ key: string; value: string }, 'key'>
   shows!: EntityTable<ShowCache, 'tmdbId'>
+  releases!: EntityTable<ReleaseCache, 'key'>
   palettes!: EntityTable<{ url: string; hex: string }, 'url'>
 
   constructor() {
@@ -46,6 +48,16 @@ class MediaLogDB extends Dexie {
       outbox: 'id, created_at',
       meta: 'key',
       shows: 'tmdbId, fetchedAt',
+      palettes: 'url',
+    })
+    this.version(4).stores({
+      items: 'id, status, kind, updated_at, sort_title',
+      events: 'id, item_id, occurred_at',
+      episodeNotes: 'id, item_id, updated_at',
+      outbox: 'id, created_at',
+      meta: 'key',
+      shows: 'tmdbId, fetchedAt',
+      releases: 'key, fetchedAt',
       palettes: 'url',
     })
   }

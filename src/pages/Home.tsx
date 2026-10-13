@@ -3,11 +3,11 @@ import { ContinueCard } from '../components/ContinueCard'
 import { HomeHero } from '../components/HomeHero'
 import { Poster } from '../components/Poster'
 import { SyncPill } from '../components/SyncPill'
-import { useContinueWatching, useUpNext } from '../hooks/useData'
+import { useContinueRanked, useUpNext } from '../hooks/useData'
 import { useUpcoming } from '../hooks/useAiring'
 
 export function Home({ onAdd }: { onAdd: () => void }) {
-  const watching = useContinueWatching()
+  const watching = useContinueRanked()
   const upNext = useUpNext()
   const airing = useUpcoming()
 
@@ -59,7 +59,7 @@ export function Home({ onAdd }: { onAdd: () => void }) {
 
       {hero && (
         <div className="px-4 lg:px-8">
-          <HomeHero item={hero} />
+          <HomeHero item={hero.item} fresh={hero.freshAt != null} />
         </div>
       )}
 
@@ -69,7 +69,7 @@ export function Home({ onAdd }: { onAdd: () => void }) {
           className="mx-4 mt-4 flex items-center justify-between rounded-card border border-[var(--color-accent)]/40 bg-accent-soft/50 px-4 py-3 text-sm lg:mx-8"
         >
           <span>
-            <b>{newThisWeek}</b> neue {newThisWeek === 1 ? 'Folge' : 'Folgen'} diese Woche
+            <b>{newThisWeek}</b> {newThisWeek === 1 ? 'Neuerscheinung' : 'Neuerscheinungen'} diese Woche
           </span>
           <span className="text-muted">›</span>
         </Link>
@@ -77,8 +77,8 @@ export function Home({ onAdd }: { onAdd: () => void }) {
 
       {rest.length > 0 && (
         <section className="mt-6 grid gap-3 px-4 lg:grid-cols-2 lg:px-8 xl:grid-cols-3">
-          {rest.map((item) => (
-            <ContinueCard key={item.id} item={item} />
+          {rest.map(({ item, freshAt }) => (
+            <ContinueCard key={item.id} item={item} fresh={freshAt != null} />
           ))}
         </section>
       )}

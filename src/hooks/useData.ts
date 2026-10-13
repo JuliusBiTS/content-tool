@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../lib/db'
+import { loadContinueRows, type ContinueRow } from '../lib/ordering'
 import type { Item, ItemStatus, MediaKind, ProgressEvent } from '../lib/types'
 
 const activeSort = (a: Item, b: Item) =>
@@ -19,6 +20,11 @@ export function useContinueWatching(): Item[] | undefined {
     const items = await db.items.where('status').equals('watching').toArray()
     return items.filter((i) => !i.deleted_at).sort(activeSort)
   })
+}
+
+/** "Weiterschauen" in the order that matters: new releases first, then recent activity. */
+export function useContinueRanked(): ContinueRow[] | undefined {
+  return useLiveQuery(() => loadContinueRows())
 }
 
 export function useUpNext(): Item[] | undefined {

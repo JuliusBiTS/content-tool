@@ -6,7 +6,24 @@ import { setPosition } from '../lib/repo'
 import { bumpFx } from '../lib/fx'
 import { useUpcoming } from '../hooks/useAiring'
 import { useRefreshState } from '../hooks/useRefresh'
+import { hasTime, localDayKey } from '../lib/showLogic'
 import type { AiringEntry } from '../lib/shows'
+
+/** "S2 E5" for TMDB series, "Folge 1357" for anime, "Kapitel 1195" for manga. */
+function unitLabel(e: AiringEntry): string {
+  if (e.unit === 'chapter') return `Kapitel ${e.episode.number}`
+  if (e.item.kind === 'anime' || e.item.metadata.absoluteNumbering)
+    return `Folge ${e.episode.number}`
+  return `S${e.episode.season} E${e.episode.number}`
+}
+
+function statusText(e: AiringEntry, aired: boolean): string {
+  if (e.unit === 'chapter') return e.watched ? 'gelesen' : 'erschienen'
+  return e.watched ? 'gesehen' : aired ? 'ausgestrahlt' : 'geplant'
+}
+
+const timeOf = (iso: string) =>
+  new Date(iso).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
 
 function ago(ms: number | null): string {
   if (!ms) return 'noch nie'
@@ -44,7 +61,7 @@ export function Upcoming() {
   const groups = useMemo(() => {
     const map = new Map<string, AiringEntry[]>()
     for (const e of entries ?? []) {
-      const day = e.airDate.slice(0, 10)
+      const day = localDayKey(e.airDate)
       const list = map.get(day)
       if (list) list.push(e)
       else map.set(day, [e])
@@ -68,7 +85,7 @@ export function Upcoming() {
         </button>
       </div>
       <p className="mb-5 text-sm text-muted">
-        Neue Folgen deiner Serien · zuletzt geprüft {ago(refresh.lastAt)}
+        Neue Folgen &amp; Kapitel · zuletzt geprüft {ago(refresh.lastAt)}
         {refresh.error ? ' · Fehler beim Prüfen' : ''}
       </p>
 
@@ -138,11 +155,12 @@ function Row({ e }: { e: AiringEntry }) {
           {e.item.title}
         </Link>
         <div className="truncate text-xs text-muted">
-          S{e.episode.season} E{e.episode.number}
+          {unitLabel(e)}
           {e.episode.name ? ` · ${e.episode.name}` : ''}
         </div>
         <div className="mt-0.5 text-[11px] text-muted">
-          {e.watched ? 'gesehen' : aired ? 'ausgestrahlt' : 'geplant'}
+          {statusText(e, aired)}
+          {hasTime(e.airDate) && !aired ? ` · ${timeOf(e.airDate)}` : ''}
         </div>
       </div>
 
@@ -160,7 +178,7 @@ function Row({ e }: { e: AiringEntry }) {
           }}
           className="my-auto shrink-0 rounded-lg bg-accent px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
         >
-          ▶ Gesehen
+          {e.unit === 'chapter' ? '📖 Gelesen' : '▶ Gesehen'}
         </button>
       )}
     </div>

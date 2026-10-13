@@ -9,6 +9,7 @@ import {
 import { refreshAll } from '../lib/refresh'
 import { useAllItems } from '../hooks/useData'
 import { ImportSheet } from '../components/ImportSheet'
+import { NetflixImportSheet } from '../components/NetflixImportSheet'
 import { exportJson, exportCsv } from '../lib/export'
 import {
   soundEnabled,
@@ -29,6 +30,7 @@ export function Profile() {
   const items = useAllItems()
   const [s, setS] = useState<SyncState | null>(null)
   const [importOpen, setImportOpen] = useState(false)
+  const [netflixOpen, setNetflixOpen] = useState(false)
   const [sound, setSound] = useState(soundEnabled())
   const [spoilers, setSpoilers] = useState(spoilerGuard())
   const [push, setPush] = useState<
@@ -144,6 +146,12 @@ export function Profile() {
         >
           Aus Letterboxd importieren
         </button>
+        <button
+          onClick={() => setNetflixOpen(true)}
+          className="w-full rounded-lg border border-border py-2.5 text-sm"
+        >
+          Aus Netflix importieren
+        </button>
         <div className="flex gap-2">
           <button
             onClick={() => void exportJson()}
@@ -198,6 +206,7 @@ export function Profile() {
       <p className="mt-8 text-center text-xs text-muted">MediaLog · v0.1</p>
 
       <ImportSheet open={importOpen} onClose={() => setImportOpen(false)} />
+      <NetflixImportSheet open={netflixOpen} onClose={() => setNetflixOpen(false)} />
     </div>
   )
 }

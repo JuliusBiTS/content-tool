@@ -26,6 +26,19 @@ async function callFn<T>(params: Record<string, string>): Promise<T> {
   return data as T
 }
 
+/** Episode numbers + names of one season (for matching imported watch histories). */
+export async function getTvSeasonEpisodes(
+  tvId: number | string,
+  season: number,
+): Promise<{ number: number; name: string }[]> {
+  const d = await callFn<{ episodes?: { episode_number: number; name: string }[] }>({
+    mode: 'season',
+    id: String(tvId),
+    season: String(season),
+  })
+  return (d.episodes ?? []).map((e) => ({ number: e.episode_number, name: e.name }))
+}
+
 export async function searchTmdb(query: string): Promise<SearchResult[]> {
   const data = await callFn<{ results: TmdbSearchItem[] }>({ mode: 'search', q: query })
   return (data.results ?? [])
