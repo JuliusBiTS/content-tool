@@ -25,8 +25,16 @@ npm run icons    # regenerate PWA icons
 
 ## Caches (Dexie, never synced)
 
-- `shows` — per-show TMDB data (status, next air, backdrop, logo, all episodes). `src/lib/shows.ts`.
+- `shows` — per-show TMDB data (status, next air, backdrop, logo, season sizes, episodes). `src/lib/shows.ts`; pure rules (freshness, which seasons to refetch, item patching, reactivation) in `src/lib/showLogic.ts` (unit-tested).
 - `palettes` — poster URL → dominant hex.
+
+## Keeping data current
+
+- `src/lib/refresh.ts` `refreshAll()` = data sync + air-date refresh. Auto-triggered by `useAutoRefresh` (start, foreground, online, 30 min, followed-set change); `{force:true}` from the buttons.
+- Airing shows are re-checked every 4 h, ended ones every 14 days (probe only). Refetch is incremental per season.
+- The calendar (`airingWindow`) reads the cache only — never fetch from render paths.
+- Background jobs must patch via `repo.patchItemFresh` (re-reads the row) so they can't revert a user action.
+- Live hooks must key on something that changes on refresh (`fetchedAt`), not row counts.
 
 ## Backend
 
