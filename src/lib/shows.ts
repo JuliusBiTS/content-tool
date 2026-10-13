@@ -1,15 +1,19 @@
 import { supabase } from './supabase'
 import { db } from './db'
-import { patchItemFields } from './repo'
+import { patchItemFresh, recordEvent } from './repo'
 import { realSeasons } from './progress'
-import type { EpisodeMeta, Item, ShowCache } from './types'
+import {
+  isAiring,
+  isFresh,
+  mergeEpisodes,
+  planItemUpdate,
+  planSeasonFetch,
+} from './showLogic'
+import type { EpisodeMeta, Item, SeasonMeta, ShowCache } from './types'
 
 const IMG = 'https://image.tmdb.org/t/p'
 const img = (path: string | null | undefined, size: string) =>
   path ? `${IMG}/${size}${path}` : null
-
-const FRESH_MS = 7 * 24 * 60 * 60 * 1000
-const AIRING_FRESH_MS = 12 * 60 * 60 * 1000
 
 /** numeric TMDB tv id, or null for non-TMDB / movie items */
 export function tvId(item: Item): number | null {
@@ -24,19 +28,21 @@ async function callFn<T>(body: Record<string, unknown>): Promise<T> {
   return data as T
 }
 
+interface TmdbEp {
+  season_number: number
+  episode_number: number
+  name: string
+  air_date: string | null
+}
+
 interface TmdbShow {
   status: string | null
   in_production: boolean
   tagline: string | null
   backdrop_path: string | null
-  number_of_seasons: number
-  next_episode_to_air: {
-    season_number: number
-    episode_number: number
-    name: string
-    air_date: string | null
-  } | null
-  seasons: { season_number: number }[]
+  next_episode_to_air: TmdbEp | null
+  last_episode_to_air: TmdbEp | null
+  seasons: { season_number: number; name: string; episode_count: number }[]
   images?: { logos?: { file_path: string; iso_639_1: string | null }[] }
 }
 
@@ -59,22 +65,75 @@ function pickLogo(show: TmdbShow): string | null {
   return img(chosen?.file_path ?? null, 'w500')
 }
 
-async function fetchShow(id: number): Promise<ShowCache> {
-  const show = await callFn<TmdbShow>({ mode: 'show', id })
-  const seasonNums = (show.seasons ?? [])
-    .map((s) => s.season_number)
-    .filter((n) => n > 0)
+const toAir = (e: TmdbEp | null) =>
+  e
+    ? {
+        season: e.season_number,
+        number: e.episode_number,
+        name: e.name,
+        airDate: e.air_date || null,
+      }
+    : null
 
-  const seasons = await Promise.all(
-    seasonNums.map((n) =>
-      callFn<TmdbSeason>({ mode: 'season', id, season: n }).catch(() => null),
+/**
+ * One show payload (1 request) + only the seasons that actually need a refresh.
+ * `probe` skips the episode lists for shows that are not airing.
+ */
+async function fetchShow(
+  id: number,
+  cached: ShowCache | undefined,
+  probe: boolean,
+): Promise<ShowCache> {
+  const show = await callFn<TmdbShow>({ mode: 'show', id })
+
+  const seasons: SeasonMeta[] = (show.seasons ?? [])
+    .filter((s) => s.season_number > 0)
+    .map((s) => ({
+      number: s.season_number,
+      name: s.name || `Staffel ${s.season_number}`,
+      episodeCount: s.episode_count,
+    }))
+
+  const nextAir = toAir(show.next_episode_to_air)
+  const lastAir = toAir(show.last_episode_to_air)
+  const base = {
+    tmdbId: id,
+    status: show.status ?? null,
+    inProduction: !!show.in_production,
+    backdrop: img(show.backdrop_path, 'w1280'),
+    logo: pickLogo(show),
+    tagline: show.tagline || null,
+    nextAir,
+    lastAir,
+    seasons,
+    fetchedAt: new Date().toISOString(),
+  }
+
+  if (probe && !isAiring(base)) {
+    return { ...base, episodes: cached?.episodes ?? [], full: cached?.full ?? false }
+  }
+
+  const refetch = planSeasonFetch(cached, seasons, {
+    nextSeason: nextAir?.season,
+    lastSeason: lastAir?.season,
+    inProduction: base.inProduction,
+  })
+
+  const results = await Promise.all(
+    refetch.map((n) =>
+      callFn<TmdbSeason>({ mode: 'season', id, season: n })
+        .then((r) => ({ n, r }))
+        .catch(() => null),
     ),
   )
 
-  const episodes: EpisodeMeta[] = []
-  for (const s of seasons) {
-    for (const e of s?.episodes ?? []) {
-      episodes.push({
+  const ok: number[] = []
+  const fetched: EpisodeMeta[] = []
+  for (const res of results) {
+    if (!res) continue
+    ok.push(res.n)
+    for (const e of res.r.episodes ?? []) {
+      fetched.push({
         season: e.season_number,
         number: e.episode_number,
         name: e.name,
@@ -87,72 +146,88 @@ async function fetchShow(id: number): Promise<ShowCache> {
   }
 
   return {
-    tmdbId: id,
-    status: show.status ?? null,
-    inProduction: !!show.in_production,
-    backdrop: img(show.backdrop_path, 'w1280'),
-    logo: pickLogo(show),
-    tagline: show.tagline || null,
-    nextAir: show.next_episode_to_air
-      ? {
-          season: show.next_episode_to_air.season_number,
-          number: show.next_episode_to_air.episode_number,
-          name: show.next_episode_to_air.name,
-          airDate: show.next_episode_to_air.air_date || null,
-        }
-      : null,
-    episodes,
-    fetchedAt: new Date().toISOString(),
+    ...base,
+    episodes: mergeEpisodes(
+      cached?.episodes,
+      fetched,
+      ok,
+      seasons.map((s) => s.number),
+    ),
+    full: true,
   }
 }
 
-const inflight = new Map<number, Promise<ShowCache | null>>()
+/** Never let a lightweight probe overwrite a full episode list. */
+async function saveShow(fresh: ShowCache): Promise<ShowCache> {
+  return db.transaction('rw', db.shows, async () => {
+    const cur = await db.shows.get(fresh.tmdbId)
+    const merged =
+      cur && (cur.full ?? cur.episodes.length > 0) && !fresh.full
+        ? { ...fresh, episodes: cur.episodes, full: true }
+        : fresh
+    await db.shows.put(merged)
+    return merged
+  })
+}
+
+const inflight = new Map<string, Promise<ShowCache | null>>()
+
+export interface GetShowOptions {
+  /** ignore freshness (still only refetches what changed) */
+  force?: boolean
+  /** lightweight check — no episode lists unless the show is airing */
+  probe?: boolean
+}
 
 /** Cached show data; refetches when stale. Safe to call often. */
-export async function getShow(item: Item, force = false): Promise<ShowCache | null> {
+export async function getShow(
+  item: Item,
+  opts: GetShowOptions = {},
+): Promise<ShowCache | null> {
   const id = tvId(item)
   if (id == null) return null
+  const probe = !!opts.probe
 
   const cached = await db.shows.get(id)
-  if (cached && !force) {
-    const age = Date.now() - Date.parse(cached.fetchedAt)
-    const limit = cached.inProduction ? AIRING_FRESH_MS : FRESH_MS
-    if (age < limit) {
-      void backfillItem(item, cached)
-      return cached
-    }
+  if (cached && !opts.force && isFresh(cached, !probe)) {
+    void syncItemFromShow(item.id, cached)
+    return cached
   }
 
-  if (inflight.has(id)) return inflight.get(id)!
+  const key = `${id}:${probe ? 'p' : 'f'}`
+  const running = inflight.get(key)
+  if (running) return running
+
   const p = (async () => {
     try {
-      const fresh = await fetchShow(id)
-      await db.shows.put(fresh)
-      await backfillItem(item, fresh)
+      const fresh = await saveShow(await fetchShow(id, cached, probe))
+      await syncItemFromShow(item.id, fresh)
       return fresh
     } catch (e) {
       console.warn('[shows] fetch failed', e)
       return cached ?? null
     } finally {
-      inflight.delete(id)
+      inflight.delete(key)
     }
   })()
-  inflight.set(id, p)
+  inflight.set(key, p)
   return p
 }
 
-/** Copy backdrop / logo / tagline onto the item so they sync + show instantly next time. */
-async function backfillItem(item: Item, show: ShowCache): Promise<void> {
-  const metaPatch: Record<string, string> = {}
-  const needBackdrop = !item.backdrop_url && !!show.backdrop
-  if (!item.metadata.logo_url && show.logo) metaPatch.logo_url = show.logo
-  if (!item.metadata.tagline && show.tagline) metaPatch.tagline = show.tagline
-
-  if (needBackdrop || Object.keys(metaPatch).length) {
-    await patchItemFields(item, {
-      ...(needBackdrop ? { backdrop_url: show.backdrop } : {}),
-      metadata: { ...item.metadata, ...metaPatch },
-    })
+/**
+ * Keep the user's item in step with TMDB: artwork, season sizes / total, and
+ * pull a finished show back to "watching" when a new episode has aired.
+ * Re-reads the row so it never reverts a fresh user action.
+ */
+export async function syncItemFromShow(itemId: string, show: ShowCache): Promise<void> {
+  let reactivated = false
+  const updated = await patchItemFresh(itemId, (cur) => {
+    const plan = planItemUpdate(cur, show)
+    reactivated = plan.reactivated
+    return plan.patch
+  })
+  if (updated && reactivated) {
+    await recordEvent(updated, 'status', null, null, 'watching')
   }
 }
 
@@ -218,8 +293,9 @@ export interface AiringEntry {
 }
 
 /**
- * Episodes of the given shows airing within [−daysBack, +daysAhead] days.
- * Sorted by air date ascending.
+ * Episodes of the given shows airing within [−daysBack, +daysAhead] days,
+ * sorted by air date. Reads the local cache only — keeping that cache fresh
+ * is the refresher's job (see airing.ts), so this is instant and offline-safe.
  */
 export async function airingWindow(
   items: Item[],
@@ -234,7 +310,7 @@ export async function airingWindow(
   for (const item of items) {
     const id = tvId(item)
     if (id == null) continue
-    const show = await getShow(item)
+    const show = await db.shows.get(id)
     if (!show) continue
     for (const ep of show.episodes) {
       if (!ep.airDate) continue

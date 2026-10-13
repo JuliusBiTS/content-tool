@@ -187,7 +187,7 @@ export function ItemDetail() {
         )}
 
         <div className="mt-4 flex gap-2">
-          {item.status === 'done' ? (
+          {item.status === 'done' && !(isEpisodic && frac != null && frac < 1) ? (
             <button
               onClick={() => void startRewatch(item)}
               className="flex-1 rounded-lg py-3 font-semibold text-white shadow-lg active:scale-[0.98]"

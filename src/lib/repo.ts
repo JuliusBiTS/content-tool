@@ -172,7 +172,10 @@ async function logEvent(
 }
 
 async function patchItem(item: Item, patch: Partial<Item>): Promise<Item> {
-  const updated: Item = { ...item, ...patch, updated_at: now() }
+  // Merge onto the *current* row, not the (possibly stale) object the caller
+  // holds — background enrichment must never revert a fresh user action.
+  const current = (await db.items.get(item.id)) ?? item
+  const updated: Item = { ...current, ...patch, updated_at: now() }
   await db.items.put(updated)
   await enqueue('items', 'update', item.id, { ...patch, updated_at: updated.updated_at })
   return updated
@@ -181,6 +184,32 @@ async function patchItem(item: Item, patch: Partial<Item>): Promise<Item> {
 /** Public escape hatch for enrichment code (backdrop/logo backfill). */
 export async function patchItemFields(item: Item, patch: Partial<Item>): Promise<Item> {
   return patchItem(item, patch)
+}
+
+/**
+ * Re-read the row, let `build` derive a patch from its *current* state, and
+ * apply it only if there is something to change. Safe for background jobs.
+ */
+export async function patchItemFresh(
+  itemId: string,
+  build: (current: Item) => Partial<Item> | null,
+): Promise<Item | null> {
+  const current = await db.items.get(itemId)
+  if (!current || current.deleted_at) return null
+  const patch = build(current)
+  if (!patch || Object.keys(patch).length === 0) return current
+  return patchItem(current, patch)
+}
+
+/** Append an event for a change made outside the normal user actions. */
+export async function recordEvent(
+  item: Item,
+  kind: ProgressEvent['kind'],
+  from: number | null,
+  to: number | null,
+  note: string | null,
+): Promise<void> {
+  await logEvent(item, kind, from, to, note)
 }
 
 /** The core "+1" action. Returns the updated item. */
@@ -229,7 +258,8 @@ export async function setMetadata(
   item: Item,
   patch: Partial<ItemMetadata>,
 ): Promise<Item> {
-  return patchItem(item, { metadata: { ...item.metadata, ...patch } })
+  const current = (await db.items.get(item.id)) ?? item
+  return patchItem(current, { metadata: { ...current.metadata, ...patch } })
 }
 
 export async function setEpisodeNote(

@@ -10,7 +10,7 @@ import {
 import { AuthProvider, useAuth } from './lib/auth'
 import { hasSupabaseConfig } from './lib/supabase'
 import { runSync, startRealtime } from './lib/sync'
-import { refreshAiringCache } from './lib/airing'
+import { useAutoRefresh } from './hooks/useRefresh'
 import { ToastProvider } from './components/Toast'
 import { BottomNav } from './components/BottomNav'
 import { SideNav } from './components/SideNav'
@@ -61,12 +61,9 @@ function Shell() {
     }
   }, [userId, localOnly])
 
-  useEffect(() => {
-    if (!userId) return
-    void refreshAiringCache()
-    const t = setInterval(() => void refreshAiringCache(), 6 * 60 * 60 * 1000)
-    return () => clearInterval(t)
-  }, [userId])
+  // sync + air dates stay current on their own (start, foreground, online,
+  // every 30 min, and whenever the set of followed shows changes)
+  useAutoRefresh(!!userId)
 
   // Web Share Target: /add?title=…  → open the add sheet prefilled
   useEffect(() => {

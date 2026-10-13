@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../lib/auth'
 import {
-  runSync,
   subscribeSync,
   resetSyncCache,
   retryFailedSync,
   type SyncState,
 } from '../lib/sync'
+import { refreshAll } from '../lib/refresh'
 import { useAllItems } from '../hooks/useData'
 import { ImportSheet } from '../components/ImportSheet'
 import { exportJson, exportCsv } from '../lib/export'
@@ -160,10 +160,10 @@ export function Profile() {
         </div>
         {!localOnly && (
           <button
-            onClick={() => void runSync()}
+            onClick={() => void refreshAll({ force: true })}
             className="w-full rounded-lg border border-border py-2.5 text-sm"
           >
-            Jetzt synchronisieren
+            Jetzt synchronisieren &amp; neue Folgen prüfen
           </button>
         )}
         {!localOnly && (!!s?.quarantined || !!s?.error) && (

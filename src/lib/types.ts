@@ -62,7 +62,12 @@ export interface ShowCache {
   logo: string | null
   tagline: string | null
   nextAir: { season: number; number: number; name: string; airDate: string | null } | null
+  lastAir?: { season: number; number: number; name: string; airDate: string | null } | null
+  /** season sizes as TMDB currently reports them (real seasons only) */
+  seasons?: SeasonMeta[]
   episodes: EpisodeMeta[]
+  /** false = lightweight probe without an episode list */
+  full?: boolean
   fetchedAt: string
 }
 

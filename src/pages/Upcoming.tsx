@@ -1,9 +1,22 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { upcomingEntries, markAiringSeen } from '../lib/airing'
+import { markAiringSeen } from '../lib/airing'
+import { refreshAll } from '../lib/refresh'
 import { setPosition } from '../lib/repo'
 import { bumpFx } from '../lib/fx'
+import { useUpcoming } from '../hooks/useAiring'
+import { useRefreshState } from '../hooks/useRefresh'
 import type { AiringEntry } from '../lib/shows'
+
+function ago(ms: number | null): string {
+  if (!ms) return 'noch nie'
+  const min = Math.round((Date.now() - ms) / 60000)
+  if (min < 1) return 'gerade eben'
+  if (min < 60) return `vor ${min} Min`
+  const h = Math.round(min / 60)
+  if (h < 24) return `vor ${h} Std`
+  return `vor ${Math.round(h / 24)} Tagen`
+}
 
 function dayLabel(iso: string): string {
   const d = new Date(iso + 'T00:00:00')
@@ -19,16 +32,14 @@ function dayLabel(iso: string): string {
 }
 
 export function Upcoming() {
-  const [entries, setEntries] = useState<AiringEntry[] | null>(null)
+  const entries = useUpcoming()
+  const refresh = useRefreshState()
 
+  // Whatever is on screen counts as seen — including episodes that arrive
+  // while the page is open after a background refresh.
   useEffect(() => {
-    let alive = true
-    upcomingEntries().then((e) => alive && setEntries(e))
-    void markAiringSeen()
-    return () => {
-      alive = false
-    }
-  }, [])
+    if (entries) void markAiringSeen()
+  }, [entries])
 
   const groups = useMemo(() => {
     const map = new Map<string, AiringEntry[]>()
@@ -43,9 +54,22 @@ export function Upcoming() {
 
   return (
     <div className="px-4 pb-28 pt-4 lg:px-8 lg:pb-10 lg:pt-8">
-      <h1 className="mb-1 text-xl font-bold lg:text-2xl">Diese Woche</h1>
+      <div className="mb-1 flex items-center justify-between gap-3">
+        <h1 className="text-xl font-bold lg:text-2xl">Diese Woche</h1>
+        <button
+          onClick={() => void refreshAll({ force: true })}
+          disabled={refresh.refreshing}
+          className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm disabled:opacity-60"
+        >
+          <span className={refresh.refreshing ? 'inline-block animate-spin' : ''} aria-hidden>
+            ↻
+          </span>
+          {refresh.refreshing ? 'Prüfe…' : 'Aktualisieren'}
+        </button>
+      </div>
       <p className="mb-5 text-sm text-muted">
-        Neue Folgen deiner laufenden Serien.
+        Neue Folgen deiner Serien · zuletzt geprüft {ago(refresh.lastAt)}
+        {refresh.error ? ' · Fehler beim Prüfen' : ''}
       </p>
 
       {entries === null && (
